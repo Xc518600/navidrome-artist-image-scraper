@@ -1,0 +1,40 @@
+{
+  "music_root": "/vol4/1000/硬盘4国语电影/音乐",
+  "cache_dir": "./cache",
+  "request_timeout": 20,
+  "user_agent": "navidrome-artist-image-scraper/0.1",
+  "providers": ["override", "netease", "theaudiodb", "deezer"],
+  "audio_extensions": [
+    ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".ape", ".wma", ".dsf"
+  ],
+  "skip_dirs": [
+    "attachments",
+    ".git",
+    "cache",
+    "__pycache__"
+  ],
+  "flat_mixed_dir_names": ["自己下载"],
+  "artist_aliases": {
+    "周杰倫": "周杰伦",
+    "邓紫棋": "G.E.M. 邓紫棋",
+    "G.E.M.邓紫棋": "G.E.M. 邓紫棋",
+    "张韶涵": "Angela Chang"
+  },
+  "navidrome_export_dir": "./navidrome-artist-images",
+  "navidrome_artist_aliases": {
+    "周杰伦": ["周杰倫", "Jay Chou"],
+    "G.E.M. 邓紫棋": ["邓紫棋", "G.E.M.邓紫棋"],
+    "伍佰 & China Blue": ["Wu Bai (伍佰) & China Blue"]
+  },
+  "overrides": {
+    "F.I.R.飞儿乐团": {
+      "url": "https://p1.music.126.net/hE-4GG9ftqe02kvBibR1OQ==/109951168502767701.jpg"
+    },
+    "MC梦": {
+      "url": "https://p2.music.126.net/UACbkRtNk9Sm5DYKGkzyOA==/109951168029868154.jpg"
+    },
+    "二手玫瑰乐队": {
+      "url": "https://p2.music.126.net/--XNCdRHliDXu5o647cwsg==/109951165912473511.jpg"
+    }
+  }
+}

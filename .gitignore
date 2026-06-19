@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+cache/
+config/
+navidrome-artist-images/
+*.log
+last-run-report*.json

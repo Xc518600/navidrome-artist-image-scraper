@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Navidrome 媒体工具台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Navidrome 媒体工具台</p>
+      <h1>媒体工具台</h1>
+      <p class="sub">
+        这里统一放歌手头像、歌词、专辑图相关入口；首页只保留工具条，点对应入口再看详情或执行任务。
+      </p>
+      <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
+      <div id="job-result-banner" class="hint" style="display:none;"></div>
+    </div>
+    <div class="actions toolbar-actions">
+      {% if page == 'artist-images' %}
+      <form method="post" action="/api/job" class="job-form" onsubmit="return submitJob(event, 'scrape')">
+        <button type="submit" class="btn btn-primary">启动刮削</button>
+      </form>
+      {% else %}
+      <a class="btn" href="/?page=artist-images">歌手头像</a>
+      <a class="btn btn-primary" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
+      <a class="btn btn-primary" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if page == 'artist-images' %}
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <a class="btn" href="/?page=music-library">返回主页</a>
+    </div>
+  </section>
+
+  <section class="grid stats">
+    <div class="card">
+      <div class="label">实际歌手总数</div>
+      <div class="value" id="scan-artists-count">{{ data.stats.artists }}</div>
+      {% if scan_error %}<div class="error">{{ scan_error }}</div>{% endif %}
+    </div>
+    <div class="card success"><div class="label">刮削成功歌手</div><div class="value" id="success-artists-count">{{ data.stats.success_artists }}</div></div>
+    <div class="card danger"><div class="label">刮削失败歌手</div><div class="value" id="failed-artists-count">{{ data.stats.failed_artists }}</div></div>
+    <div class="card"><div class="label">待处理歌手</div><div class="value" id="pending-artists-count">{{ data.pending_artists }}</div><div class="hint">已扫描到，但还没进入当前报告明细</div></div>
+    <div class="card"><div class="label">上次任务成功歌手</div><div class="value" id="last-run-success-artists-count">{{ data.stats.last_run_success_artists }}</div></div>
+  </section>
+
+
+
+  <section class="grid two">
+    <div class="card">
+      <h2>待处理歌手名单</h2>
+      <p class="hint" id="pending-artist-list-hint">
+        {% if data.pending_artists and not data.pending_artist_rows %}
+        当前只知道待处理数量，后台扫描缓存还没有保留具体歌手名单。
+        {% endif %}
+      </p>
+      <ul class="simple-list" id="pending-artist-list">
+      {% for item in data.pending_artist_rows %}
+        <li>
+          <strong>{{ item.artist }}</strong>{% if item.folder_count %} · {{ item.folder_count }} 个目录{% endif %}
+          <button type="button" class="btn btn-small" onclick='return submitTargetJob("artist-online-write", {{ {"artist": item.artist}|tojson }})'>手动刮削头像</button>
+        </li>
+      {% else %}
+        <li>{{ '暂时拿不到具体名单' if data.pending_artists else '没有待处理歌手' }}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  {% else %}
+  {% set library_view = request.args.get('view', 'home') %}
+
+  {% if library_view == 'home' %}
+  {% endif %}
+
+  {% if library_view == 'lyrics' %}
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <div>
+        <h2>刮削歌词</h2>
+        <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描歌词”' }}</p>
+      </div>
+      <a class="btn" href="/?page=music-library">返回主页</a>
+    </div>
+  </section>
+  <section class="grid stats">
+    <div class="card"><div class="label">总歌曲数</div><div class="value">{{ data.stats.songs }}</div></div>
+    <div class="card success"><div class="label">有歌词</div><div class="value">{{ data.stats.lyrics_with_count }}</div></div>
+    <div class="card danger"><div class="label">没有歌词</div><div class="value">{{ data.stats.missing_lyrics }}</div></div>
+  </section>
+  <section class="card" id="missing-lyrics">
+      <h2>无歌词歌曲</h2>
+      <p class="hint">没有歌词的歌曲会显示在这里，可以直接手动刮削。</p>
+      <div id="lyrics-candidate-panel" class="card" style="display:none; margin-bottom:12px;">
+        <h3>候选歌词手动选择</h3>
+        <p class="hint" id="lyrics-candidate-title"></p>
+        <ul class="simple-list compact-list" id="lyrics-candidate-list"></ul>
+      </div>
+      <ul class="simple-list compact-list">
+      {% for item in data.missing_lyrics_rows %}
+        <li>
+          <strong>{{ item.title or item.artist }}</strong><br>
+          <span class="muted">文件名：{{ item.filename }}</span><br>
+          <span class="muted">目录：{{ item.folder_path }}</span><br>
+          <span class="path-line">完整路径：{{ item.source_file }}</span><br>
+          <span class="muted">手动搜索建议：{{ item.search_hint }}</span><br>
+          <span class="muted">{{ '已检查内嵌歌词，仍未识别到歌词' if lyrics_scan_mode else '快速判断未识别到歌词；如需更准可先重新扫描' }}</span><br>
+          <button type="button" class="btn btn-small" onclick='return submitTargetJob("lyrics-online-write", {{ {"audio_path": item.source_file}|tojson }})'>手动刮削</button>
+        </li>
+      {% else %}
+        <li>没有发现缺歌词歌曲</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if library_view == 'album-art' %}
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <div>
+        <p class="eyebrow">详情页</p>
+        <h2>专辑图扫描结果</h2>
+        <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描专辑图”' }}</p>
+      </div>
+      <a class="btn" href="/?page=music-library">回到工具条首页</a>
+    </div>
+  </section>
+  <section class="card" id="missing-album-art">
+    <h2>缺 Navidrome 专辑图目录（最近一次后台扫描前 200 条）</h2>
+    <p class="hint">这里只展示最近一次后台扫描后的真实结果：只要目录里还没有可用封面文件，就会列出来，并标明可修复来源。</p>
+    <ul class="simple-list compact-list">
+    {% for item in data.missing_album_art_rows %}
+      <li>
+        <strong>{{ item.artist }}</strong>
+        {% if item.navidrome_cover_status == 'embedded-available' %}
+        <span class="badge success">可从内嵌生成</span>
+        {% elif item.navidrome_cover_status == 'mtw-available' %}
+        <span class="badge missing">可从 MTW 生成</span>
+        {% elif item.navidrome_cover_status == 'mixed-folder-skip' %}
+        <span class="badge failed">混合目录，已跳过</span>
+        {% else %}
+        <span class="badge failed">需要在线刮图</span>
+        {% endif %}
+        <br>
+        <span class="path-line">{{ item.folder_path }}</span><br>
+        <span class="muted">目标文件：{{ item.target_file }}</span><br>
+        {% if item.navidrome_cover_status == 'embedded-available' %}
+        <span class="muted">该目录当前还没有落盘封面，但目录内至少有一首歌带内嵌封面，可直接提取成 cover.jpg。</span><br>
+        {% elif item.navidrome_cover_status == 'mtw-available' %}
+        <span class="muted">该目录当前还没有落盘封面，但 Music Tag Web 里已有可用专辑图，可直接写成 cover.jpg。</span><br>
+        {% if item.mtw_album_name %}<span class="muted">MTW 专辑：{{ item.mtw_album_name }}</span><br>{% endif %}
+        {% elif item.navidrome_cover_status == 'mixed-folder-skip' %}
+        <span class="muted">该目录被识别为混合歌曲目录，已跳过目录级专辑图自动处理，避免把某一首歌或某一张专辑的封面错误写成整个目录共用的 cover.jpg。</span><br>
+        {% if item.mtw_folder_album_name_count %}<span class="muted">识别到的 MTW 专辑数：{{ item.mtw_folder_album_name_count }}</span><br>{% endif %}
+        {% if item.audio_file_count %}<span class="muted">目录内音频数：{{ item.audio_file_count }}</span><br>{% endif %}
+        {% if item.embedded_cover_count %}<span class="muted">带内嵌封面的音频数：{{ item.embedded_cover_count }}</span><br>{% endif %}
+        {% else %}
+        <span class="muted">该目录当前既没有落盘封面，也没发现可直接复用的内嵌封面或 MTW 专辑图，需要在线刮图。</span><br>
+        {% endif %}
+        {% if item.navidrome_cover_status != 'mixed-folder-skip' %}
+        <button type="button" class="btn btn-small" onclick='return submitTargetJob("album-art-online-write", {{ {"audio_path": item.source_file, "folder_path": item.folder_path}|tojson }})'>在线刮这个专辑图</button>
+        {% endif %}
+      </li>
+    {% else %}
+      <li>没有发现缺 Navidrome 专辑图目录</li>
+    {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% endif %}
+
+<script>
+async function waitForJobFinish(options = {}) {
+  const {
+    timeoutMs = 90000,
+    intervalMs = 1500,
+    expectMode = null,
+    expectTargetAudio = null,
+    expectTargetFolder = null,
+    expectTargetArtist = null,
+  } = options;
+  const startedAt = Date.now();
+  let lastJob = null;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const res = await fetch('/api/job');
+      const job = await res.json();
+      lastJob = job;
+
+      const target = job.target || {};
+      const modeOk = !expectMode || job.mode === expectMode;
+      const audioOk = !expectTargetAudio || target.audio_path === expectTargetAudio;
+      const folderOk = !expectTargetFolder || target.folder_path === expectTargetFolder;
+      const artistOk = !expectTargetArtist || target.artist === expectTargetArtist;
+      const matches = modeOk && audioOk && folderOk && artistOk;
+
+      if (matches && job.running === false && job.mode) {
+        return job;
+      }
+    } catch (e) {}
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return lastJob;
+}
+
+function summarizeJobResult(job, fallbackText = '任务已结束') {
+  const log = job?.log || [];
+  const text = log.join('\n');
+  const returncode = job?.returncode;
+  if (returncode === 0) {
+    if (text.includes('[WRITE] online embedded lyrics') || text.includes('[WRITE] online sidecar lyric') || text.includes('[WRITE] embedded lyrics ->') || text.includes('[WRITE] sidecar lyric ->')) {
+      return '✅ 歌词刮削成功，已写入文件';
+    }
+    if (text.includes('[WRITE] online album art') || text.includes('[WRITE] ') && text.includes('cover.jpg')) {
+      return '✅ 专辑图刮削成功，已写入 cover.jpg';
+    }
+    if (text.includes('embedded lyrics already exist') || text.includes('sidecar lyric already exists')) {
+      return 'ℹ️ 这首歌已经有歌词了，所以这次跳过了';
+    }
+    if (text.includes('cover.jpg already exists')) {
+      return 'ℹ️ 这个目录已经有专辑图了，所以这次跳过了';
+    }
+    if (text.includes('[DONE] fetched=0') && text.includes('failed=0')) {
+      return 'ℹ️ 任务执行完成，但这次没有需要新写入的内容';
+    }
+    return `✅ ${fallbackText}`;
+  }
+  if (returncode === 1) {
+    const failLine = [...log].reverse().find(line => line.includes('[FAIL]') || line.includes('[ERROR]') || line.includes('[WARN]'));
+    return `❌ 任务失败${failLine ? `\n${failLine}` : ''}`;
+  }
+  return '⏳ 任务状态还没完全返回，请刷新任务日志确认';
+}
+
+function showJobBanner(message, tone = 'info') {
+  const node = document.getElementById('job-result-banner');
+  if (!node) return;
+  node.style.display = 'block';
+  node.textContent = message;
+  node.className = tone === 'error' ? 'error' : 'hint';
+}
+
+function renderLyricsCandidates(audioPath, candidates) {
+  const panel = document.getElementById('lyrics-candidate-panel');
+  const title = document.getElementById('lyrics-candidate-title');
+  const list = document.getElementById('lyrics-candidate-list');
+  if (!panel || !title || !list) return;
+  list.innerHTML = '';
+  if (!Array.isArray(candidates) || !candidates.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  title.textContent = `这首歌自动匹配失败，你可以手动选择候选歌词：${audioPath}`;
+  for (const item of candidates) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '未知标题';
+    li.appendChild(strong);
+    li.appendChild(document.createElement('br'));
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source} ｜ 分数：${item.score ?? 0}`;
+    li.appendChild(meta);
+    li.appendChild(document.createElement('br'));
+    const preview = document.createElement('span');
+    preview.className = 'muted';
+    preview.textContent = `预览：${item.lyrics_preview || ''}`;
+    li.appendChild(preview);
+    li.appendChild(document.createElement('br'));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-small';
+    button.textContent = '选这个歌词写入';
+    button.onclick = () => submitCandidateWrite(audioPath, item.token);
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+  panel.style.display = 'block';
+}
+
+async function submitCandidateWrite(audioPath, candidateToken) {
+  const res = await fetch('/api/job', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode: 'lyrics-candidate-write', target: {audio_path: audioPath, candidate_token: candidateToken}})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.ok) {
+    const message = data?.error || '候选歌词写入失败';
+    showJobBanner(message, 'error');
+    return false;
+  }
+  const message = `✅ 已写入歌词：${data.title || ''}`;
+  showJobBanner(message, 'info');
+  setTimeout(() => location.reload(), 500);
+  return false;
+}
+
+function renderPendingArtistList(pendingNames, pendingArtists) {
+  const pendingList = document.getElementById('pending-artist-list');
+  const pendingListHint = document.getElementById('pending-artist-list-hint');
+  if (!pendingList) return;
+  if (!pendingNames.length) {
+    return;
+  }
+  pendingList.innerHTML = '';
+  for (const name of pendingNames) {
+    const li = document.createElement('li');
+    li.dataset.artist = name;
+    const strong = document.createElement('strong');
+    strong.textContent = name;
+    li.appendChild(strong);
+    li.appendChild(document.createTextNode(' '));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-small';
+    button.textContent = '手动刮削头像';
+    button.onclick = () => submitTargetJob('artist-online-write', {artist: name});
+    li.appendChild(button);
+    pendingList.appendChild(li);
+  }
+  if (pendingListHint) pendingListHint.textContent = '';
+}
+
+function removePendingArtistFromUI(artistName) {
+  const pendingList = document.getElementById('pending-artist-list');
+  if (!pendingList || !artistName) return;
+  const items = Array.from(pendingList.querySelectorAll('li[data-artist]'));
+  const targetItem = items.find((item) => item.dataset.artist === artistName);
+  if (!targetItem) return;
+  targetItem.remove();
+  const countNode = document.getElementById('pending-artists-count');
+  const currentCount = Number(countNode?.textContent || 0);
+  const nextCount = Math.max(currentCount - 1, 0);
+  const setText = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = value ?? 0;
+  };
+  setText('pending-artists-count', nextCount);
+  const remainingItems = pendingList.querySelectorAll('li[data-artist]');
+  if (!remainingItems.length) {
+    renderPendingArtistList([], nextCount);
+  }
+  const pendingListHint = document.getElementById('pending-artist-list-hint');
+  if (pendingListHint) {
+    pendingListHint.textContent = nextCount ? '当前只显示待处理数量。' : '';
+  }
+}
+
+async function submitJob(event, mode) {
+  event.preventDefault();
+  const res = await fetch('/api/job', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode})
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const message = data.error || '任务启动失败';
+    showJobBanner(message, 'error');
+    return false;
+  }
+
+  if (mode === 'dry-run') {
+    showJobBanner('dry-run 任务已启动');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
+  if (mode === 'scrape') {
+    showJobBanner('刮削任务已启动，成功后会自动导出到 Navidrome 头像目录');
+    setTimeout(() => location.reload(), 800);
+    return false;
+  }
+
+  const waitingMessages = {
+    'lyrics-scan': '后台歌词扫描已启动，完成后这里会展示最新真实结果...',
+    'album-art-scan': '后台专辑图扫描已启动，完成后这里会展示最新真实结果...',
+    'lyrics-write': 'MTW 歌词写入任务已启动，正在等待结果...',
+    'lyrics-write-overwrite': 'MTW 歌词覆盖写入任务已启动，正在等待结果...',
+    'lyrics-online-write': '在线歌词刮削任务已启动，正在等待结果...',
+    'lyrics-online-write-overwrite': '在线歌词覆盖任务已启动，正在等待结果...',
+    'album-art-write': 'MTW 专辑图写入任务已启动，正在等待结果...',
+    'album-art-write-overwrite': 'MTW 专辑图覆盖写入任务已启动，正在等待结果...',
+    'album-art-online-write': '在线专辑图刮削任务已启动，正在等待结果...',
+    'album-art-online-write-overwrite': '在线专辑图覆盖任务已启动，正在等待结果...',
+  };
+
+  const waitingMessage = waitingMessages[mode] || '任务已启动，正在等待结果...';
+  showJobBanner(waitingMessage);
+  const job = await waitForJobFinish({ expectMode: mode, timeoutMs: 180000 });
+  const resultMessage = summarizeJobResult(job, '任务已结束');
+  showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+  if (mode === 'artist-scan-count' && job?.returncode === 0) {
+    await refreshArtistScanCountCard();
+  }
+  if (mode === 'artist-scan-count') {
+    return false;
+  }
+  setTimeout(() => location.reload(), 500);
+  return false;
+}
+
+async function submitTargetJob(mode, target) {
+  const res = await fetch('/api/job', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode, target})
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const message = data.error || '任务启动失败';
+    showJobBanner(message, 'error');
+    return false;
+  }
+  if (mode === 'lyrics-online-write') {
+    const waitingMessage = '这首歌的在线歌词刮削任务已启动，正在等待结果...';
+    showJobBanner(waitingMessage);
+    const job = await waitForJobFinish({
+      expectMode: mode,
+      expectTargetAudio: target?.audio_path || null,
+    });
+    const manualCandidates = job?.manual_candidates || {};
+    const candidates = manualCandidates?.[target?.audio_path || ''];
+    const resultMessage = summarizeJobResult(job, '这首歌歌词刮削任务已结束');
+    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    if (Array.isArray(candidates) && candidates.length) {
+      renderLyricsCandidates(target?.audio_path || '', candidates);
+      return false;
+    }
+  } else if (mode === 'album-art-online-write') {
+    const waitingMessage = '这个目录的在线专辑图刮削任务已启动，正在等待结果...';
+    showJobBanner(waitingMessage);
+    const job = await waitForJobFinish({
+      expectMode: mode,
+      expectTargetAudio: target?.audio_path || null,
+      expectTargetFolder: target?.folder_path || null,
+    });
+    const resultMessage = summarizeJobResult(job, '这个目录专辑图刮削任务已结束');
+    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+  } else if (mode === 'artist-online-write') {
+    const waitingMessage = `歌手 ${target?.artist || ''} 的头像刮削任务已启动，正在等待结果...`;
+    showJobBanner(waitingMessage);
+    const job = await waitForJobFinish({
+      expectMode: mode,
+      expectTargetArtist: target?.artist || null,
+    });
+    const resultMessage = summarizeJobResult(job, `歌手 ${target?.artist || ''} 头像刮削任务已结束`);
+    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    if (job?.returncode === 0) {
+      removePendingArtistFromUI(target?.artist || '');
+    }
+    setTimeout(() => location.reload(), 500);
+    return false;
+  } else {
+    showJobBanner('目标任务已启动');
+  }
+  setTimeout(() => location.reload(), 500);
+  return false;
+}
+
+
+</script>
+</body>
+</html>

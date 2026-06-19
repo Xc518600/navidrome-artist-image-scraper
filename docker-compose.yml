@@ -1,0 +1,19 @@
+services:
+  navidrome-artist-image-dashboard:
+    container_name: navidrome-artist-image-dashboard
+    image: ghcr.io/xc518600/navidrome-artist-image-dashboard:latest
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      CONFIG_PATH: /config/config.json
+      REPORT_PATH: /config/last-run-report.json
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: 8080
+    ports:
+      - "38080:8080"
+    volumes:
+      - ./config:/config
+      - /vol1/1000/docker/Music/music_tag_web/config:/config/music_tag_web:ro
+      - ./cache:/app/cache
+      - /vol4/1000/硬盘4国产电视剧/音乐:/music:rw
+    working_dir: /app
