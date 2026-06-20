@@ -19,11 +19,8 @@
     </div>
     <div class="actions toolbar-actions">
       {% if page == 'artist-images' %}
-      <form method="post" action="/api/job" class="job-form" onsubmit="return submitJob(event, 'scrape')">
-        <button type="submit" class="btn btn-primary">启动刮削</button>
-      </form>
       {% else %}
-      <a class="btn" href="/?page=artist-images">歌手头像</a>
+      <a class="btn btn-primary" href="/?page=artist-images">歌手头像</a>
       <a class="btn btn-primary" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
       <a class="btn btn-primary" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
       {% endif %}
@@ -33,7 +30,17 @@
   {% if page == 'artist-images' %}
   <section class="card section-head-card">
     <div class="section-head-row">
-      <a class="btn" href="/?page=music-library">返回主页</a>
+      <div>
+        <p class="eyebrow">详情页</p>
+        <h2>歌手头像刮削</h2>
+        <p class="hint">最近扫描时间：{{ data.artist_scan_count_updated_at or '还没有后台扫描结果，刷新页面会自动触发扫描' }}</p>
+      </div>
+      <div class="section-head-actions">
+        <form method="post" action="/api/job" class="job-form" onsubmit="return submitJob(event, 'scrape')">
+          <button type="submit" class="btn btn-primary">启动刮削</button>
+        </form>
+        <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
+      </div>
     </div>
   </section>
 
@@ -82,10 +89,11 @@
   <section class="card section-head-card">
     <div class="section-head-row">
       <div>
+        <p class="eyebrow">详情页</p>
         <h2>刮削歌词</h2>
         <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描歌词”' }}</p>
       </div>
-      <a class="btn" href="/?page=music-library">返回主页</a>
+      <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
     </div>
   </section>
   <section class="grid stats">
@@ -128,7 +136,7 @@
         <h2>专辑图扫描结果</h2>
         <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描专辑图”' }}</p>
       </div>
-      <a class="btn" href="/?page=music-library">回到工具条首页</a>
+      <a class="btn btn-primary" href="/?page=music-library">返回首页</a>
     </div>
   </section>
   <section class="card" id="missing-album-art">

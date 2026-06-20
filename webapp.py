@@ -2751,6 +2751,9 @@ def index():
             album_art_scan_mode=album_art_scan,
         )
 
+    # 构建报告数据
+    data = build_report_state()
+    
     # 自动触发扫描计数任务（如果缓存过期且任务未运行）
     scan_cache = load_artist_scan_count_cache()
     cache_stale = is_artist_scan_cache_stale(scan_cache)
@@ -2768,7 +2771,6 @@ def index():
                 job_state["last_scan_count_error"] = str(e)
         threading.Thread(target=run_scan_bg, daemon=True).start()
     
-    data = build_report_state()
     if scan_cache:
         data = merge_scan_stats_into_report_state(data, scan_cache.get("stats", {}))
     stats = data.get("stats", {})

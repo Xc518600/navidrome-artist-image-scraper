@@ -205,6 +205,11 @@ h3 {
   padding: 10px 14px;
   border-radius: 14px;
   cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  box-sizing: border-box;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 0 18px rgba(122,92,255,0.18);
   transition: transform .15s ease, box-shadow .18s ease, border-color .18s ease;
 }
@@ -274,6 +279,27 @@ h3 {
 
 .section-head-row .btn {
   min-height: 38px;
+  flex: 0 0 auto;
+}
+
+.section-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.section-head-actions .job-form {
+  margin: 0;
+  display: flex;
+}
+
+.section-head-actions .btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
   flex: 0 0 auto;
 }
 
@@ -564,6 +590,16 @@ summary {
   }
 
   .section-head-row .btn {
+    width: 100%;
+  }
+
+  .section-head-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .section-head-actions .job-form,
+  .section-head-actions .btn {
     width: 100%;
   }
 
