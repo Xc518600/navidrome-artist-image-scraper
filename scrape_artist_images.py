@@ -705,7 +705,6 @@ def main():
                 print(f"    [SKIP] {folder.path}")
 
         report["artists"][artist] = item
-        time.sleep(0.2)
 
     report_path = Path(args.report)
     if not report_path.is_absolute():

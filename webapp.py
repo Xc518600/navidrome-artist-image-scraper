@@ -231,8 +231,33 @@ def has_music_tag_web_db_lyric(audio_path: Path) -> bool:
     return track_path in load_music_tag_web_lyrics_paths()
 
 
+def _read_id3_fallback_flags(audio_path: Path) -> dict:
+    result = {
+        "has_embedded_lyrics": False,
+        "has_embedded_cover": False,
+    }
+    try:
+        tags = ID3(str(audio_path))
+    except Exception:
+        return result
+    try:
+        for key in tags.keys():
+            upper = str(key).upper()
+            if any(token in upper for token in ["USLT", "SYLT", "LYRICS", "UNSYNCEDLYRICS", "©LYR"]):
+                value = tags.get(key)
+                if value and str(value).strip():
+                    result["has_embedded_lyrics"] = True
+            if "APIC" in upper:
+                value = tags.get(key)
+                if value:
+                    result["has_embedded_cover"] = True
+    except Exception:
+        pass
+    return result
+
+
 @lru_cache(maxsize=4096)
-def read_audio_metadata_flags(audio_path_str: str) -> dict:
+def _read_audio_metadata_flags_cached(audio_path_str: str, stat_signature: tuple[int, int]) -> dict:
     audio_path = Path(audio_path_str)
     result = {
         "has_embedded_lyrics": False,
@@ -241,9 +266,9 @@ def read_audio_metadata_flags(audio_path_str: str) -> dict:
     try:
         audio = MutagenFile(audio_path)
     except Exception:
-        return result
+        return _read_id3_fallback_flags(audio_path)
     if audio is None:
-        return result
+        return _read_id3_fallback_flags(audio_path)
 
     tags = getattr(audio, "tags", None)
     if tags:
@@ -272,6 +297,20 @@ def read_audio_metadata_flags(audio_path_str: str) -> dict:
             result["has_embedded_cover"] = len(pictures) > 0
 
     return result
+
+
+def read_audio_metadata_flags(audio_path_str: str) -> dict:
+    audio_path = Path(audio_path_str)
+    try:
+        stat = audio_path.stat()
+        stat_signature = (int(stat.st_mtime_ns), int(stat.st_size))
+    except Exception:
+        stat_signature = (0, 0)
+    return _read_audio_metadata_flags_cached(audio_path_str, stat_signature)
+
+
+def clear_audio_metadata_flags_cache() -> None:
+    _read_audio_metadata_flags_cached.cache_clear()
 
 
 def has_sidecar_lyric(audio_path: Path) -> bool:
@@ -1835,6 +1874,7 @@ def write_music_tag_web_lyrics(overwrite: bool = False) -> dict:
 
         ok, reason = write_lyric_to_audio_file(audio_path, lyrics, overwrite=overwrite)
         if ok:
+            clear_audio_metadata_flags_cache()
             result['written_embedded'] += 1
             append_job_log(f"[WRITE] embedded lyrics -> {audio_path}")
             continue
@@ -1850,6 +1890,7 @@ def write_music_tag_web_lyrics(overwrite: bool = False) -> dict:
                 append_job_log(f"[SKIP] {sidecar} (sidecar lyric already exists)")
                 continue
             sidecar.write_text(lyrics, encoding='utf-8')
+            clear_audio_metadata_flags_cache()
             result['written_sidecar'] += 1
             append_job_log(f"[WRITE] sidecar lyric -> {sidecar}")
         except Exception as exc:
@@ -1904,6 +1945,7 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
             continue
         ok, reason = write_lyric_to_audio_file(audio_path, lyrics, overwrite=overwrite)
         if ok:
+            clear_audio_metadata_flags_cache()
             result['written_embedded'] += 1
             remove_song_from_lyrics_scan_cache(audio_path)
             append_job_log(f"[WRITE] online embedded lyrics -> {audio_path}")
@@ -1921,6 +1963,7 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
                 append_job_log(f"[SKIP] {sidecar} (sidecar lyric already exists)")
                 continue
             sidecar.write_text(lyrics, encoding='utf-8')
+            clear_audio_metadata_flags_cache()
             result['written_sidecar'] += 1
             remove_song_from_lyrics_scan_cache(audio_path)
             append_job_log(f"[WRITE] online sidecar lyric -> {sidecar}")
@@ -2748,7 +2791,8 @@ def index():
         deep_media_scan = False
         auto_lyrics_scan_started = False
         auto_lyrics_scan_wait = False
-        if lyrics_scan:
+        lyrics_auto_refreshed = request.args.get("lyrics_auto_refreshed") == "1"
+        if lyrics_scan and not lyrics_auto_refreshed:
             if not job_state["running"]:
                 auto_lyrics_scan_started = bool(run_job("lyrics-scan"))
             auto_lyrics_scan_wait = auto_lyrics_scan_started or (job_state.get("running") and job_state.get("mode") == "lyrics-scan")
@@ -2773,6 +2817,14 @@ def index():
 
     # 构建报告数据
     data = build_report_state()
+
+    auto_artist_scrape_started = False
+    auto_artist_scrape_wait = False
+    artist_auto_refreshed = request.args.get("artist_auto_refreshed") == "1"
+    if not artist_auto_refreshed:
+        if not job_state["running"]:
+            auto_artist_scrape_started = bool(run_job("scrape"))
+        auto_artist_scrape_wait = auto_artist_scrape_started or (job_state.get("running") and job_state.get("mode") == "scrape")
     
     # 自动触发扫描计数任务（如果缓存过期且任务未运行）
     scan_cache = load_artist_scan_count_cache()
@@ -2863,6 +2915,8 @@ def index():
         scan_mode=(scan == "1"),
         lyrics_scan_mode=False,
         album_art_scan_mode=False,
+        auto_lyrics_scan_wait=False,
+        auto_artist_scrape_wait=auto_artist_scrape_wait,
     )
 
 

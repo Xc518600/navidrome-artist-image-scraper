@@ -36,9 +36,6 @@
         <p class="hint">最近扫描时间：{{ data.artist_scan_count_updated_at or '还没有后台扫描结果，刷新页面会自动触发扫描' }}</p>
       </div>
       <div class="section-head-actions">
-        <form method="post" action="/api/job" class="job-form" onsubmit="return submitJob(event, 'scrape')">
-          <button type="submit" class="btn btn-primary">启动刮削</button>
-        </form>
         <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
       </div>
     </div>
@@ -475,6 +472,7 @@ async function submitTargetJob(mode, target) {
 }
 
 const autoLyricsScanWait = {{ 'true' if auto_lyrics_scan_wait else 'false' }};
+const autoArtistScrapeWait = {{ 'true' if auto_artist_scrape_wait else 'false' }};
 
 async function autoRefreshLyricsSection() {
   if (!autoLyricsScanWait) return;
@@ -482,11 +480,29 @@ async function autoRefreshLyricsSection() {
   const job = await waitForJobFinish({ expectMode: 'lyrics-scan', timeoutMs: 180000 });
   const resultMessage = summarizeJobResult(job, '后台歌词扫描已结束');
   showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
-  setTimeout(() => location.reload(), 500);
+  setTimeout(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('lyrics_auto_refreshed', '1');
+    window.location.href = url.toString();
+  }, 500);
+}
+
+async function autoRefreshArtistSection() {
+  if (!autoArtistScrapeWait) return;
+  showJobBanner('已自动启动歌手头像刮削，正在刷新最新结果...');
+  const job = await waitForJobFinish({ expectMode: 'scrape', timeoutMs: 300000 });
+  const resultMessage = summarizeJobResult(job, '歌手头像刮削已结束');
+  showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+  setTimeout(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('artist_auto_refreshed', '1');
+    window.location.href = url.toString();
+  }, 500);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   autoRefreshLyricsSection();
+  autoRefreshArtistSection();
 });
 
 

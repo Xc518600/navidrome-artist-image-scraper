@@ -1,9 +1,9 @@
 {
   "music_root": "/vol4/1000/硬盘4国语电影/音乐",
   "cache_dir": "./cache",
-  "request_timeout": 20,
+  "request_timeout": 8,
   "user_agent": "navidrome-artist-image-scraper/0.1",
-  "providers": ["override", "netease", "theaudiodb", "deezer"],
+  "providers": ["override", "netease", "deezer"],
   "audio_extensions": [
     ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".ape", ".wma", ".dsf"
   ],
