@@ -474,6 +474,21 @@ async function submitTargetJob(mode, target) {
   return false;
 }
 
+const autoLyricsScanWait = {{ 'true' if auto_lyrics_scan_wait else 'false' }};
+
+async function autoRefreshLyricsSection() {
+  if (!autoLyricsScanWait) return;
+  showJobBanner('已自动启动后台歌词扫描，正在刷新最新结果...');
+  const job = await waitForJobFinish({ expectMode: 'lyrics-scan', timeoutMs: 180000 });
+  const resultMessage = summarizeJobResult(job, '后台歌词扫描已结束');
+  showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+  setTimeout(() => location.reload(), 500);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  autoRefreshLyricsSection();
+});
+
 
 </script>
 </body>

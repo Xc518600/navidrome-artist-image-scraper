@@ -2123,6 +2123,19 @@ def save_scan_cache(path: Path, payload: dict) -> None:
     write_json_file(path, payload)
 
 
+def is_scan_cache_stale(data: Optional[dict], ttl_seconds: int = 300) -> bool:
+    if not isinstance(data, dict) or not data:
+        return True
+    updated_at = str(data.get("updated_at") or "").strip()
+    if not updated_at:
+        return True
+    try:
+        updated = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return True
+    return (datetime.now() - updated).total_seconds() > ttl_seconds
+
+
 def remove_song_from_lyrics_scan_cache(audio_path: Path) -> None:
     cache = load_scan_cache(LYRICS_SCAN_CACHE_PATH)
     if not cache:
@@ -2733,6 +2746,12 @@ def index():
         lyrics_scan = view == "lyrics"
         album_art_scan = view == "album-art"
         deep_media_scan = False
+        auto_lyrics_scan_started = False
+        auto_lyrics_scan_wait = False
+        if lyrics_scan:
+            if not job_state["running"]:
+                auto_lyrics_scan_started = bool(run_job("lyrics-scan"))
+            auto_lyrics_scan_wait = auto_lyrics_scan_started or (job_state.get("running") and job_state.get("mode") == "lyrics-scan")
         try:
             data = build_library_state(scan_live=live_scan, lyrics_scan_only=deep_media_scan)
         except Exception as exc:
@@ -2749,6 +2768,7 @@ def index():
             scan_mode=live_scan,
             lyrics_scan_mode=lyrics_scan,
             album_art_scan_mode=album_art_scan,
+            auto_lyrics_scan_wait=auto_lyrics_scan_wait,
         )
 
     # 构建报告数据
