@@ -333,8 +333,6 @@ def has_sidecar_lyric(audio_path: Path) -> bool:
 def has_any_lyric(audio_path: Path, include_embedded: bool = True) -> bool:
     if has_sidecar_lyric(audio_path):
         return True
-    if has_music_tag_web_db_lyric(audio_path):
-        return True
     if not include_embedded:
         return False
     flags = read_audio_metadata_flags(str(audio_path.resolve()))
