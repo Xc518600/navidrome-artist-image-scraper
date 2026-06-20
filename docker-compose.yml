@@ -1,7 +1,7 @@
 services:
-  navidrome-artist-image-dashboard:
-    container_name: navidrome-artist-image-dashboard
-    image: ghcr.io/xc518600/navidrome-artist-image-dashboard:latest
+  navidrome-artist-image-scraper:
+    container_name: navidrome-artist-image-scraper
+    image: ghcr.io/xc518600/navidrome-artist-image-scraper:latest
     restart: unless-stopped
     environment:
       TZ: Asia/Shanghai

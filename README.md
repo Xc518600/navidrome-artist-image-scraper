@@ -7,9 +7,9 @@
 - 缺失专辑图识别与在线补图
 - 适配飞牛 NAS / Docker Compose 的常驻部署方式
 
-仓库地址：`https://github.com/Xc518600/navidrome-artist-image-dashboard`
+仓库地址：`https://github.com/Xc518600/navidrome-artist-image-scraper`
 
-镜像地址：`ghcr.io/xc518600/navidrome-artist-image-dashboard:latest`
+镜像地址：`ghcr.io/xc518600/navidrome-artist-image-scraper:latest`
 
 ## 当前功能
 
@@ -50,7 +50,7 @@
 默认镜像：
 
 ```text
-ghcr.io/xc518600/navidrome-artist-image-dashboard:latest
+ghcr.io/xc518600/navidrome-artist-image-scraper:latest
 ```
 
 启动：
@@ -190,8 +190,8 @@ echo '你的GitHub_TOKEN' | docker login ghcr.io -u xc518600 --password-stdin
 ### 构建并推送
 
 ```bash
-docker build -t ghcr.io/xc518600/navidrome-artist-image-dashboard:latest .
-docker push ghcr.io/xc518600/navidrome-artist-image-dashboard:latest
+docker build -t ghcr.io/xc518600/navidrome-artist-image-scraper:latest .
+docker push ghcr.io/xc518600/navidrome-artist-image-scraper:latest
 ```
 
 ## 说明
