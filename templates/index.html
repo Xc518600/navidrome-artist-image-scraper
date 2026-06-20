@@ -473,6 +473,7 @@ async function submitTargetJob(mode, target) {
 
 const autoLyricsScanWait = {{ 'true' if auto_lyrics_scan_wait else 'false' }};
 const autoArtistScrapeWait = {{ 'true' if auto_artist_scrape_wait else 'false' }};
+const autoHomeBootstrapWait = {{ 'true' if auto_home_bootstrap_wait else 'false' }};
 
 async function autoRefreshLyricsSection() {
   if (!autoLyricsScanWait) return;
@@ -500,7 +501,30 @@ async function autoRefreshArtistSection() {
   }, 500);
 }
 
+async function autoBootstrapHomePage() {
+  if (!autoHomeBootstrapWait) return;
+  showJobBanner('首页已自动启动后台扫描：先扫描歌词，再刮削歌手头像，请稍候...');
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 600000) {
+    const res = await fetch('/api/job');
+    const data = await res.json();
+    const bootstrap = data.home_bootstrap || {};
+    if (bootstrap.error) {
+      showJobBanner(`❌ 后台自动扫描失败：${bootstrap.error}`, 'error');
+      return;
+    }
+    if (bootstrap.done && !bootstrap.running) {
+      showJobBanner('后台自动扫描已完成，正在刷新首页结果...');
+      setTimeout(() => location.reload(), 500);
+      return;
+    }
+    await new Promise(r => setTimeout(r, 1200));
+  }
+  showJobBanner('⚠️ 后台自动扫描等待超时，请稍后手动刷新页面查看结果。', 'error');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  autoBootstrapHomePage();
   autoRefreshLyricsSection();
   autoRefreshArtistSection();
 });

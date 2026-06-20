@@ -82,6 +82,14 @@ job_state = {
     "auto_configure": False,
     "target": None,
 }
+home_bootstrap_state = {
+    "running": False,
+    "stage": None,
+    "started_at": None,
+    "finished_at": None,
+    "done": False,
+    "error": "",
+}
 
 
 def load_json_file(path: Path, default: dict | list | None = None):
@@ -2658,6 +2666,53 @@ def run_artist_scan_count_job() -> dict:
     return payload
 
 
+def ensure_home_bootstrap_started() -> bool:
+    if home_bootstrap_state.get("running"):
+        return False
+    home_bootstrap_state.update({
+        "running": True,
+        "stage": "lyrics-scan",
+        "started_at": int(time.time()),
+        "finished_at": None,
+        "done": False,
+        "error": "",
+    })
+
+    def worker():
+        try:
+            deadline = time.time() + 900
+            launched_lyrics = False
+            launched_scrape = False
+            while time.time() < deadline:
+                if not launched_lyrics:
+                    if not job_state.get("running") and run_job("lyrics-scan"):
+                        launched_lyrics = True
+                        home_bootstrap_state["stage"] = "lyrics-scan"
+                elif launched_lyrics and not launched_scrape:
+                    if not job_state.get("running"):
+                        if job_state.get("mode") == "lyrics-scan":
+                            if run_job("scrape"):
+                                launched_scrape = True
+                                home_bootstrap_state["stage"] = "scrape"
+                        elif job_state.get("mode") is None:
+                            if run_job("scrape"):
+                                launched_scrape = True
+                                home_bootstrap_state["stage"] = "scrape"
+                elif launched_scrape:
+                    if not job_state.get("running") and job_state.get("mode") == "scrape":
+                        home_bootstrap_state["done"] = True
+                        break
+                time.sleep(0.5)
+        except Exception as exc:
+            home_bootstrap_state["error"] = str(exc)
+        finally:
+            home_bootstrap_state["running"] = False
+            home_bootstrap_state["finished_at"] = int(time.time())
+
+    threading.Thread(target=worker, daemon=True).start()
+    return True
+
+
 def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
     with job_lock:
         if job_state["running"]:
@@ -2791,8 +2846,12 @@ def index():
         deep_media_scan = False
         auto_lyrics_scan_started = False
         auto_lyrics_scan_wait = False
+        auto_home_bootstrap_wait = False
         lyrics_auto_refreshed = request.args.get("lyrics_auto_refreshed") == "1"
-        if lyrics_scan and not lyrics_auto_refreshed:
+        home_bootstrap_done = request.args.get("home_bootstrap_done") == "1"
+        if not lyrics_scan and not album_art_scan and not home_bootstrap_done:
+            auto_home_bootstrap_wait = bool(ensure_home_bootstrap_started() or home_bootstrap_state.get("running") or home_bootstrap_state.get("done"))
+        elif lyrics_scan and not lyrics_auto_refreshed:
             if not job_state["running"]:
                 auto_lyrics_scan_started = bool(run_job("lyrics-scan"))
             auto_lyrics_scan_wait = auto_lyrics_scan_started or (job_state.get("running") and job_state.get("mode") == "lyrics-scan")
@@ -2813,6 +2872,7 @@ def index():
             lyrics_scan_mode=lyrics_scan,
             album_art_scan_mode=album_art_scan,
             auto_lyrics_scan_wait=auto_lyrics_scan_wait,
+            auto_home_bootstrap_wait=auto_home_bootstrap_wait,
         )
 
     # 构建报告数据
@@ -2916,6 +2976,7 @@ def index():
         lyrics_scan_mode=False,
         album_art_scan_mode=False,
         auto_lyrics_scan_wait=False,
+        auto_home_bootstrap_wait=False,
         auto_artist_scrape_wait=auto_artist_scrape_wait,
     )
 
@@ -2989,6 +3050,7 @@ def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, ov
         return {"ok": False, "error": "candidate-empty-lyrics"}
     ok, reason = write_lyric_to_audio_file(audio_path, lyrics, overwrite=overwrite)
     if ok:
+        clear_audio_metadata_flags_cache()
         remove_song_from_lyrics_scan_cache(audio_path)
         append_job_log(f"[WRITE] selected {payload.get('source')} lyrics -> {audio_path}")
         return {
@@ -3027,7 +3089,7 @@ def api_scan_count():
 @app.route("/api/job", methods=["GET", "POST"])
 def api_job():
     if request.method == "GET":
-        return jsonify(job_state)
+        return jsonify({**job_state, "home_bootstrap": dict(home_bootstrap_state)})
     payload = request.get_json(silent=True) or request.form or {}
     mode = payload.get("mode", "dry-run")
     overwrite = str(payload.get("overwrite", "false")).lower() in {"1", "true", "yes", "on"}
