@@ -471,9 +471,10 @@ async function submitTargetJob(mode, target) {
   return false;
 }
 
-const autoLyricsScanWait = {{ 'true' if auto_lyrics_scan_wait else 'false' }};
-const autoArtistScrapeWait = {{ 'true' if auto_artist_scrape_wait else 'false' }};
+const autoLyricsScanWait = false;
+const autoArtistScrapeWait = false;
 const autoHomeBootstrapWait = {{ 'true' if auto_home_bootstrap_wait else 'false' }};
+const HOME_BOOTSTRAP_SESSION_KEY = 'navidrome-artist-image-scraper:home-bootstrap-ran';
 
 async function autoRefreshLyricsSection() {
   if (!autoLyricsScanWait) return;
@@ -503,6 +504,13 @@ async function autoRefreshArtistSection() {
 
 async function autoBootstrapHomePage() {
   if (!autoHomeBootstrapWait) return;
+  try {
+    if (window.sessionStorage.getItem(HOME_BOOTSTRAP_SESSION_KEY) === '1') {
+      return;
+    }
+    window.sessionStorage.setItem(HOME_BOOTSTRAP_SESSION_KEY, 'pending');
+  } catch (e) {}
+
   showJobBanner('首页已自动启动后台扫描：先扫描歌词，再刮削歌手头像，请稍候...');
   const startedAt = Date.now();
   while (Date.now() - startedAt < 600000) {
@@ -510,23 +518,24 @@ async function autoBootstrapHomePage() {
     const data = await res.json();
     const bootstrap = data.home_bootstrap || {};
     if (bootstrap.error) {
+      try { window.sessionStorage.removeItem(HOME_BOOTSTRAP_SESSION_KEY); } catch (e) {}
       showJobBanner(`❌ 后台自动扫描失败：${bootstrap.error}`, 'error');
       return;
     }
     if (bootstrap.done && !bootstrap.running) {
+      try { window.sessionStorage.setItem(HOME_BOOTSTRAP_SESSION_KEY, '1'); } catch (e) {}
       showJobBanner('后台自动扫描已完成，正在刷新首页结果...');
       setTimeout(() => location.reload(), 500);
       return;
     }
     await new Promise(r => setTimeout(r, 1200));
   }
+  try { window.sessionStorage.removeItem(HOME_BOOTSTRAP_SESSION_KEY); } catch (e) {}
   showJobBanner('⚠️ 后台自动扫描等待超时，请稍后手动刷新页面查看结果。', 'error');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   autoBootstrapHomePage();
-  autoRefreshLyricsSection();
-  autoRefreshArtistSection();
 });
 
 

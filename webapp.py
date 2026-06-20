@@ -2842,17 +2842,10 @@ def index():
         lyrics_scan = view == "lyrics"
         album_art_scan = view == "album-art"
         deep_media_scan = False
-        auto_lyrics_scan_started = False
-        auto_lyrics_scan_wait = False
         auto_home_bootstrap_wait = False
-        lyrics_auto_refreshed = request.args.get("lyrics_auto_refreshed") == "1"
         home_bootstrap_done = request.args.get("home_bootstrap_done") == "1"
         if not lyrics_scan and not album_art_scan and not home_bootstrap_done:
             auto_home_bootstrap_wait = bool(ensure_home_bootstrap_started() or home_bootstrap_state.get("running") or home_bootstrap_state.get("done"))
-        elif lyrics_scan and not lyrics_auto_refreshed:
-            if not job_state["running"]:
-                auto_lyrics_scan_started = bool(run_job("lyrics-scan"))
-            auto_lyrics_scan_wait = auto_lyrics_scan_started or (job_state.get("running") and job_state.get("mode") == "lyrics-scan")
         try:
             data = build_library_state(scan_live=live_scan, lyrics_scan_only=deep_media_scan)
         except Exception as exc:
@@ -2869,21 +2862,13 @@ def index():
             scan_mode=live_scan,
             lyrics_scan_mode=lyrics_scan,
             album_art_scan_mode=album_art_scan,
-            auto_lyrics_scan_wait=auto_lyrics_scan_wait,
+            auto_lyrics_scan_wait=False,
             auto_home_bootstrap_wait=auto_home_bootstrap_wait,
         )
 
     # 构建报告数据
     data = build_report_state()
 
-    auto_artist_scrape_started = False
-    auto_artist_scrape_wait = False
-    artist_auto_refreshed = request.args.get("artist_auto_refreshed") == "1"
-    if not artist_auto_refreshed:
-        if not job_state["running"]:
-            auto_artist_scrape_started = bool(run_job("scrape"))
-        auto_artist_scrape_wait = auto_artist_scrape_started or (job_state.get("running") and job_state.get("mode") == "scrape")
-    
     # 自动触发扫描计数任务（如果缓存过期且任务未运行）
     scan_cache = load_artist_scan_count_cache()
     cache_stale = is_artist_scan_cache_stale(scan_cache)
@@ -2900,7 +2885,7 @@ def index():
             except Exception as e:
                 job_state["last_scan_count_error"] = str(e)
         threading.Thread(target=run_scan_bg, daemon=True).start()
-    
+
     if scan_cache:
         data = merge_scan_stats_into_report_state(data, scan_cache.get("stats", {}))
     stats = data.get("stats", {})
@@ -2975,7 +2960,7 @@ def index():
         album_art_scan_mode=False,
         auto_lyrics_scan_wait=False,
         auto_home_bootstrap_wait=False,
-        auto_artist_scrape_wait=auto_artist_scrape_wait,
+        auto_artist_scrape_wait=False,
     )
 
 
