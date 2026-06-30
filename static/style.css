@@ -424,8 +424,8 @@ h3 {
 .settings-shell {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  gap: 18px;
-  padding: 0 20px 20px;
+  gap: 32px;
+  padding: 0 24px 20px;
   align-items: start;
   min-height: 100vh;
 }
