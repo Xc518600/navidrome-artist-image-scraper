@@ -423,9 +423,11 @@ h3 {
 
 .settings-shell {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 24px;
-  padding: 28px 40px 36px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 18px;
+  padding: 0 20px 20px;
+  align-items: start;
+  min-height: 100vh;
 }
 
 .settings-sidebar,
@@ -435,10 +437,11 @@ h3 {
 
 .settings-sidebar {
   position: sticky;
-  top: 112px;
+  top: 0;
   align-self: start;
-  padding: 22px;
-  border-radius: 22px;
+  padding: 18px;
+  border-radius: 18px;
+  margin-top: 0;
 }
 
 .settings-sidebar-head {
@@ -469,8 +472,11 @@ h3 {
 }
 
 .settings-song-sidebar {
-  max-height: calc(100vh - 140px);
+  height: 100vh;
+  max-height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-song-list {
@@ -482,6 +488,8 @@ h3 {
   padding-right: 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(39,240,255,0.45) rgba(255,255,255,0.06);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .settings-song-list::-webkit-scrollbar {
@@ -573,16 +581,17 @@ h3 {
 
 .settings-main {
   display: grid;
-  gap: 22px;
+  gap: 14px;
+  padding-top: 0;
 }
 
 .settings-topbar-card,
 .settings-panel-card {
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
 .settings-detail-header-card {
-  padding: 4px;
+  padding: 0;
 }
 
 .settings-topbar {
@@ -594,7 +603,8 @@ h3 {
 
 .settings-detail-header {
   align-items: center;
-  gap: 22px;
+  gap: 16px;
+  padding: 18px;
 }
 
 .settings-detail-cover-wrap {
@@ -605,7 +615,7 @@ h3 {
   min-width: 0;
   flex: 1;
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .settings-badges {
@@ -653,11 +663,12 @@ h3 {
 .settings-panel-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  gap: 14px;
 }
 
 .settings-panel-grid-compact {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
 }
 
 .settings-panel-card-wide {
@@ -687,8 +698,8 @@ h3 {
 }
 
 .settings-cover-frame-compact {
-  width: 120px;
-  min-width: 120px;
+  width: 96px;
+  min-width: 96px;
   aspect-ratio: 1 / 1;
 }
 
@@ -719,8 +730,8 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .settings-list-block {
@@ -728,7 +739,7 @@ h3 {
 }
 
 .settings-list-block li {
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -738,20 +749,20 @@ h3 {
 
 .settings-path-compact {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .settings-path-inline-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .settings-path-item {
   display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
 }
@@ -780,10 +791,18 @@ h3 {
 @media (max-width: 1100px) {
   .settings-shell {
     grid-template-columns: 1fr;
+    padding: 0 14px 14px;
   }
 
   .settings-sidebar {
     position: static;
+    height: auto;
+    max-height: none;
+  }
+
+  .settings-song-sidebar {
+    height: auto;
+    max-height: none;
   }
 
   .settings-detail-header {
