@@ -2194,11 +2194,55 @@ def remove_song_from_lyrics_scan_cache(audio_path: Path) -> None:
     filtered_rows = [row for row in rows if str(row.get("source_file") or "") != source_file]
     removed = len(rows) - len(filtered_rows)
     if removed <= 0:
+        attempts = dict(cache.get("auto_lyrics_attempts") or {})
+        if source_file in attempts:
+            attempts.pop(source_file, None)
+            cache["auto_lyrics_attempts"] = attempts
+            cache["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            save_scan_cache(LYRICS_SCAN_CACHE_PATH, cache)
         return
     cache["missing_lyrics_rows"] = filtered_rows
     cache["missing_lyrics_count"] = max(0, int(cache.get("missing_lyrics_count") or 0) - removed)
+    attempts = dict(cache.get("auto_lyrics_attempts") or {})
+    if source_file in attempts:
+        attempts.pop(source_file, None)
+        cache["auto_lyrics_attempts"] = attempts
     cache["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_scan_cache(LYRICS_SCAN_CACHE_PATH, cache)
+
+
+def try_auto_scrape_lyric_once(audio_path: Path, overwrite: bool = False) -> dict:
+    fetched = search_multisource_lyrics(str(audio_path.resolve()))
+    if not fetched.get("ok"):
+        return {
+            "ok": False,
+            "error": str(fetched.get("error") or "lyric-fetch-failed"),
+            "source": str(fetched.get("source") or ""),
+        }
+
+    lyrics = str(fetched.get("lyrics") or "").strip()
+    if not lyrics:
+        return {"ok": False, "error": "empty-lyrics-payload", "source": str(fetched.get("source") or "")}
+
+    ok, reason = write_lyric_to_audio_file(audio_path, lyrics, overwrite=overwrite)
+    if ok:
+        clear_audio_metadata_flags_cache()
+        return {"ok": True, "write_mode": "embedded", "source": str(fetched.get("source") or "")}
+
+    if 'already exist' in reason and not overwrite:
+        clear_audio_metadata_flags_cache()
+        return {"ok": True, "write_mode": "already-exists", "source": str(fetched.get("source") or "")}
+
+    try:
+        sidecar = audio_path.with_suffix('.lrc')
+        if sidecar.exists() and not overwrite:
+            clear_audio_metadata_flags_cache()
+            return {"ok": True, "write_mode": "sidecar-already-exists", "source": str(fetched.get("source") or "")}
+        sidecar.write_text(lyrics, encoding='utf-8')
+        clear_audio_metadata_flags_cache()
+        return {"ok": True, "write_mode": "sidecar", "source": str(fetched.get("source") or "")}
+    except Exception as exc:
+        return {"ok": False, "error": f"{reason}; sidecar fallback failed: {exc}", "source": str(fetched.get("source") or "")}
 
 
 def run_lyrics_scan_job() -> dict:
@@ -2208,15 +2252,74 @@ def run_lyrics_scan_job() -> dict:
     skip_dirs = list(config.get("skip_dirs", []))
     append_job_log("[INFO] starting lyrics scan job")
     scan = collect_missing_lyrics_rows(music_root, extensions, skip_dirs, limit=1000, include_embedded=True)
+    previous_cache = load_scan_cache(LYRICS_SCAN_CACHE_PATH)
+    auto_attempts = dict(previous_cache.get("auto_lyrics_attempts") or {})
+    failed_rows = []
+    auto_attempted_now = 0
+    auto_fixed_now = 0
+    auto_failed_now = 0
+
+    for row in scan.get("missing_lyrics_rows", []) or []:
+        source_file = str(row.get("source_file") or "")
+        if not source_file:
+            continue
+        audio_path = Path(source_file)
+        attempt_info = auto_attempts.get(source_file)
+
+        if attempt_info:
+            failed_rows.append({
+                **row,
+                "auto_attempted": True,
+                "auto_attempt_status": str(attempt_info.get("status") or "failed"),
+                "auto_attempted_at": str(attempt_info.get("attempted_at") or ""),
+                "auto_attempt_error": str(attempt_info.get("error") or ""),
+            })
+            continue
+
+        auto_attempted_now += 1
+        append_job_log(f"[INFO] auto lyric scrape -> {audio_path}")
+        result = try_auto_scrape_lyric_once(audio_path)
+        if result.get("ok"):
+            auto_fixed_now += 1
+            append_job_log(f"[WRITE] auto lyric success -> {audio_path} :: {result.get('write_mode')}")
+            continue
+
+        auto_failed_now += 1
+        error_text = str(result.get("error") or "lyric-auto-scrape-failed")
+        attempted_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        auto_attempts[source_file] = {
+            "status": "failed",
+            "attempted_at": attempted_at,
+            "error": error_text,
+        }
+        append_job_log(f"[FAIL] auto lyric scrape -> {audio_path} :: {error_text}")
+        failed_rows.append({
+            **row,
+            "auto_attempted": True,
+            "auto_attempt_status": "failed",
+            "auto_attempted_at": attempted_at,
+            "auto_attempt_error": error_text,
+        })
+
+    stale_attempts = {str(row.get("source_file") or "") for row in failed_rows if str(row.get("source_file") or "")}
+    auto_attempts = {k: v for k, v in auto_attempts.items() if k in stale_attempts}
+
     payload = {
         "ok": True,
         "scan_type": "lyrics",
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "missing_lyrics_count": scan.get("missing_lyrics_count", 0),
-        "missing_lyrics_rows": scan.get("missing_lyrics_rows", []),
+        "missing_lyrics_count": len(failed_rows),
+        "missing_lyrics_rows": failed_rows,
+        "auto_lyrics_attempts": auto_attempts,
+        "auto_lyrics_attempted_now": auto_attempted_now,
+        "auto_lyrics_fixed_now": auto_fixed_now,
+        "auto_lyrics_failed_now": auto_failed_now,
+        "raw_missing_lyrics_count": scan.get("missing_lyrics_count", 0),
     }
     save_scan_cache(LYRICS_SCAN_CACHE_PATH, payload)
-    append_job_log(f"[DONE] lyrics scan missing={payload['missing_lyrics_count']}")
+    append_job_log(
+        f"[DONE] lyrics scan raw_missing={payload['raw_missing_lyrics_count']} auto_attempted={auto_attempted_now} auto_fixed={auto_fixed_now} failed_list={payload['missing_lyrics_count']}"
+    )
     return payload
 
 
@@ -2359,11 +2462,11 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
 
         future_actions = [
             {
-                "title": "扫描缺失歌词",
+                "title": "扫描歌词刮削失败",
                 "status": "ready",
-                "description": f"最近一次后台扫描结果显示有 {lyric_scan.get('missing_lyrics_count', 0)} 首待手动处理歌曲。",
+                "description": f"最近一次后台扫描结果显示有 {lyric_scan.get('missing_lyrics_count', 0)} 首自动刮削失败、待手动处理歌曲。",
                 "action_url": "/?page=music-library&view=lyrics#missing-lyrics",
-                "action_label": "查看缺歌词结果",
+                "action_label": "查看刮削失败结果",
             },
             {
                 "title": "扫描缺失专辑图片",
@@ -2544,11 +2647,11 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
 
     future_actions = [
         {
-            "title": "扫描缺失歌词",
+            "title": "扫描歌词刮削失败",
             "status": "ready",
-            "description": f"最近一次后台扫描结果显示有 {lyric_scan.get('missing_lyrics_count', 0)} 首待手动处理歌曲。",
+            "description": f"最近一次后台扫描结果显示有 {lyric_scan.get('missing_lyrics_count', 0)} 首自动刮削失败、待手动处理歌曲。",
             "action_url": "/?page=music-library&view=lyrics#missing-lyrics",
-            "action_label": "查看缺歌词结果",
+            "action_label": "查看刮削失败结果",
         },
         {
             "title": "扫描缺失专辑图片",
@@ -2829,12 +2932,36 @@ def merge_scan_stats_into_report_state(data: dict, scan_stats: Optional[dict]) -
 @app.route("/")
 def index():
     page = request.args.get("page", "music-library")
-    if page not in {"artist-images", "music-library"}:
+    if page not in {"artist-images", "music-library", "settings"}:
         page = "artist-images"
 
     current_filter = request.args.get("filter", "all")
     scan = request.args.get("scan")
     scan_error = request.args.get("scan_error", "")
+
+    if page == "settings":
+        config = get_config()
+        resolved_paths = {
+            "config_path": str(CONFIG_PATH),
+            "music_root": str(resolve_music_root(config)),
+            "cache_dir": str(resolve_cache_dir(config)),
+            "navidrome_export_dir": str(resolve_export_dir(config)) if resolve_export_dir(config) else "",
+        }
+        return render_template(
+            "index.html",
+            page=page,
+            data={"config": config, "resolved_paths": resolved_paths},
+            current_filter=current_filter,
+            asset_version=ASSET_VERSION,
+            page_updated_at=PAGE_UPDATED_AT,
+            scan_error=scan_error,
+            scan_mode=False,
+            lyrics_scan_mode=False,
+            album_art_scan_mode=False,
+            auto_lyrics_scan_wait=False,
+            auto_home_bootstrap_wait=False,
+            auto_artist_scrape_wait=False,
+        )
 
     if page == "music-library":
         live_scan = False
@@ -3019,6 +3146,38 @@ def build_scan_count_state() -> dict:
 @app.route("/api/state")
 def api_state():
     return jsonify(build_library_state())
+
+
+@app.route("/api/config", methods=["GET", "POST"])
+def api_config():
+    config = get_config()
+    if request.method == "GET":
+        return jsonify({"ok": True, "config": config})
+    
+    # POST - 保存配置
+    try:
+        new_config = request.get_json()
+        if not new_config or not isinstance(new_config, dict):
+            return jsonify({"ok": False, "error": "invalid config format"}), 400
+        
+        # 验证必要字段
+        if "music_root" not in new_config:
+            return jsonify({"ok": False, "error": "music_root is required"}), 400
+        
+        # 备份原配置
+        backup_path = CONFIG_PATH.parent / f"config.backup.{int(time.time())}.json"
+        import shutil
+        shutil.copy2(CONFIG_PATH, backup_path)
+        
+        # 保存新配置
+        write_json_file(CONFIG_PATH, new_config)
+        
+        # 重新加载配置
+        clear_audio_metadata_flags_cache()
+        
+        return jsonify({"ok": True, "message": "配置已保存", "backup": str(backup_path.name)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
 
 
 def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = False) -> dict:

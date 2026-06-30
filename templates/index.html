@@ -23,11 +23,98 @@
       <a class="btn btn-primary" href="/?page=artist-images">歌手头像</a>
       <a class="btn btn-primary" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
       <a class="btn btn-primary" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
+      <a class="btn btn-primary" href="/?page=settings">设置</a>
       {% endif %}
     </div>
   </header>
 
-  {% if page == 'artist-images' %}
+  {% if page == 'settings' %}
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <div>
+        <p class="eyebrow">详情页</p>
+        <h2>项目设置</h2>
+        <p class="hint">这里读取当前项目正在使用的配置设定，方便你核对。</p>
+      </div>
+      <div class="section-head-actions">
+        <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid stats">
+    <div class="card">
+      <div class="label">配置文件</div>
+      <div class="config-value path-block">{{ data.resolved_paths.config_path }}</div>
+    </div>
+    <div class="card">
+      <div class="label">音乐目录</div>
+      <div class="config-value path-block">{{ data.resolved_paths.music_root }}</div>
+    </div>
+    <div class="card">
+      <div class="label">缓存目录</div>
+      <div class="config-value path-block">{{ data.resolved_paths.cache_dir }}</div>
+    </div>
+    <div class="card">
+      <div class="label">导出目录</div>
+      <div class="config-value path-block">{{ data.resolved_paths.navidrome_export_dir or '未设置' }}</div>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h2>基础路径</h2>
+      <ul class="simple-list compact-list config-list">
+        <li><strong>music_root：</strong> <span class="path-block">{{ data.config.music_root }}</span></li>
+        <li><strong>cache_dir：</strong> <span class="path-block">{{ data.config.cache_dir }}</span></li>
+        <li><strong>navidrome_export_dir：</strong> <span class="path-block">{{ data.config.navidrome_export_dir or '未设置' }}</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>请求与来源</h2>
+      <ul class="simple-list compact-list config-list">
+        <li><strong>request_timeout：</strong> {{ data.config.request_timeout }}</li>
+        <li><strong>user_agent：</strong> {{ data.config.user_agent }}</li>
+        <li><strong>providers：</strong> {{ (data.config.providers or []) | join(', ') }}</li>
+        <li><strong>audio_extensions：</strong> {{ (data.config.audio_extensions or []) | join(', ') }}</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>扫描规则</h2>
+      <ul class="simple-list compact-list config-list">
+        <li><strong>skip_dirs：</strong> {{ (data.config.skip_dirs or []) | join(', ') }}</li>
+        <li><strong>flat_mixed_dir_names：</strong> {{ (data.config.flat_mixed_dir_names or []) | join(', ') or '未设置' }}</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>映射与覆盖</h2>
+      <ul class="simple-list compact-list config-list">
+        <li><strong>artist_aliases：</strong> {{ (data.config.artist_aliases or {}) | length }} 项</li>
+        <li><strong>navidrome_artist_aliases：</strong> {{ (data.config.navidrome_artist_aliases or {}) | length }} 项</li>
+        <li><strong>overrides：</strong> {{ (data.config.overrides or {}) | length }} 项</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <h2>在线编辑配置</h2>
+      <p class="hint">直接修改下面 JSON，点保存后会写回当前项目配置文件，并自动备份原配置。</p>
+      <div class="editor-actions">
+        <button type="button" class="btn btn-primary" onclick="saveConfigJson()">保存配置</button>
+        <button type="button" class="btn" onclick="resetConfigJson()">恢复当前读取值</button>
+      </div>
+      <textarea id="config-json-editor" class="config-editor">{{ data.config | tojson(indent=2) }}</textarea>
+    </div>
+    <div class="card">
+      <h2>当前配置内容（只读预览）</h2>
+      <p class="hint">保存前可以先对照右侧预览确认。</p>
+      <pre class="config-json" id="config-json-preview">{{ data.config | tojson(indent=2) }}</pre>
+    </div>
+  </section>
+
+  {% elif page == 'artist-images' %}
+
   <section class="card section-head-card">
     <div class="section-head-row">
       <div>
@@ -96,11 +183,11 @@
   <section class="grid stats">
     <div class="card"><div class="label">总歌曲数</div><div class="value">{{ data.stats.songs }}</div></div>
     <div class="card success"><div class="label">有歌词</div><div class="value">{{ data.stats.lyrics_with_count }}</div></div>
-    <div class="card danger"><div class="label">没有歌词</div><div class="value">{{ data.stats.missing_lyrics }}</div></div>
+    <div class="card danger"><div class="label">刮削失败</div><div class="value">{{ data.stats.missing_lyrics }}</div></div>
   </section>
   <section class="card" id="missing-lyrics">
-      <h2>无歌词歌曲</h2>
-      <p class="hint">没有歌词的歌曲会显示在这里，可以直接手动刮削。</p>
+      <h2>刮削失败</h2>
+      <p class="hint">检测到缺歌词时会先自动刮削一次；只有自动刮削失败的歌曲才会显示在这里，而且同一首歌不会反复自动刮削。</p>
       <div id="lyrics-candidate-panel" class="card" style="display:none; margin-bottom:12px;">
         <h3>候选歌词手动选择</h3>
         <p class="hint" id="lyrics-candidate-title"></p>
@@ -114,11 +201,13 @@
           <span class="muted">目录：{{ item.folder_path }}</span><br>
           <span class="path-line">完整路径：{{ item.source_file }}</span><br>
           <span class="muted">手动搜索建议：{{ item.search_hint }}</span><br>
-          <span class="muted">{{ '已检查内嵌歌词，仍未识别到歌词' if lyrics_scan_mode else '快速判断未识别到歌词；如需更准可先重新扫描' }}</span><br>
+          {% if item.auto_attempted_at %}<span class="muted">自动刮削时间：{{ item.auto_attempted_at }}</span><br>{% endif %}
+          {% if item.auto_attempt_error %}<span class="muted">失败原因：{{ item.auto_attempt_error }}</span><br>{% endif %}
+          <span class="muted">{{ '已自动刮削过一次但仍失败，可在这里手动重试' if lyrics_scan_mode else '已自动刮削过一次但仍失败，可在这里手动重试' }}</span><br>
           <button type="button" class="btn btn-small" onclick='return submitTargetJob("lyrics-online-write", {{ {"audio_path": item.source_file}|tojson }})'>手动刮削</button>
         </li>
       {% else %}
-        <li>没有发现缺歌词歌曲</li>
+        <li>没有发现歌词刮削失败的歌曲</li>
       {% endfor %}
       </ul>
     </div>
@@ -251,6 +340,58 @@ function showJobBanner(message, tone = 'info') {
   node.style.display = 'block';
   node.textContent = message;
   node.className = tone === 'error' ? 'error' : 'hint';
+}
+
+const INITIAL_CONFIG_JSON = {% if page == 'settings' %}{{ data.config | tojson(indent=2) | tojson }}{% else %}null{% endif %};
+
+function resetConfigJson() {
+  const editor = document.getElementById('config-json-editor');
+  const preview = document.getElementById('config-json-preview');
+  if (!editor || INITIAL_CONFIG_JSON === null) return;
+  editor.value = INITIAL_CONFIG_JSON;
+  if (preview) preview.textContent = INITIAL_CONFIG_JSON;
+  showJobBanner('已恢复到当前读取到的配置内容');
+}
+
+async function saveConfigJson() {
+  const editor = document.getElementById('config-json-editor');
+  const preview = document.getElementById('config-json-preview');
+  if (!editor) return false;
+  let payload;
+  try {
+    payload = JSON.parse(editor.value);
+  } catch (error) {
+    showJobBanner(`配置 JSON 格式不对：${error.message}`, 'error');
+    return false;
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    showJobBanner('配置内容必须是一个 JSON 对象', 'error');
+    return false;
+  }
+
+  showJobBanner('正在保存配置...');
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      showJobBanner(data?.error || '保存失败', 'error');
+      return false;
+    }
+    const pretty = JSON.stringify(payload, null, 2);
+    editor.value = pretty;
+    if (preview) preview.textContent = pretty;
+    showJobBanner(`✅ 配置已保存${data?.backup ? `，已自动备份为 ${data.backup}` : ''}`);
+    setTimeout(() => location.reload(), 800);
+    return false;
+  } catch (error) {
+    showJobBanner(`保存失败：${error.message}`, 'error');
+    return false;
+  }
 }
 
 function renderLyricsCandidates(audioPath, candidates) {

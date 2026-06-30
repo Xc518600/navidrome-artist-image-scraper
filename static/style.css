@@ -366,6 +366,66 @@ h3 {
   box-shadow: inset 0 0 24px rgba(39,240,255,0.06);
 }
 
+.config-value {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #fff;
+}
+
+.path-block {
+  word-break: break-all;
+}
+
+.config-json {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(39,240,255,0.18);
+  background: rgba(4, 4, 12, 0.82);
+  color: #d6fff9;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
+  box-shadow: inset 0 0 24px rgba(39,240,255,0.06);
+}
+
+.config-editor {
+  width: 100%;
+  min-height: 520px;
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(39,240,255,0.22);
+  background: rgba(4, 4, 12, 0.9);
+  color: #d6fff9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  box-shadow: inset 0 0 24px rgba(39,240,255,0.06);
+}
+
+.config-editor:focus {
+  border-color: rgba(39,240,255,0.55);
+  box-shadow: 0 0 0 1px rgba(39,240,255,0.18), inset 0 0 24px rgba(39,240,255,0.08);
+}
+
+.editor-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.config-list li {
+  line-height: 1.7;
+  word-break: break-word;
+}
+
 .filters {
   display: flex;
   gap: 10px;
