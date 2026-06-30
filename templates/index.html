@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
 </head>
 <body>
+  {% if page != 'settings' %}
   <header class="topbar">
     <div>
       <p class="eyebrow">Navidrome 媒体工具台</p>
@@ -27,6 +28,7 @@
       {% endif %}
     </div>
   </header>
+  {% endif %}
 
   {% if page == 'settings' %}
   <section class="settings-shell">
@@ -39,8 +41,6 @@
 
       <div class="settings-action-stack">
         <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
-        <button type="button" class="btn btn-primary" onclick="saveConfigJson()">保存配置</button>
-        <button type="button" class="btn" onclick="resetConfigJson()">恢复当前读取值</button>
       </div>
 
       <div class="settings-search-box">
@@ -67,50 +67,31 @@
     </aside>
 
     <div class="settings-main">
-      <section class="card settings-topbar-card">
-        <div class="settings-topbar">
-          <div>
+      <section class="card settings-topbar-card settings-detail-header-card">
+        <div class="settings-topbar settings-detail-header">
+          <div class="settings-detail-cover-wrap">
+            <div class="settings-cover-frame settings-cover-frame-compact">
+              {% if data.selected_song %}
+              <img id="settings-cover-image" class="settings-cover-image" src="{{ data.selected_song.cover_url }}" alt="cover" onerror="handleSettingsCoverError(this)">
+              {% else %}
+              <div id="settings-cover-placeholder" class="settings-cover-placeholder">暂无封面</div>
+              {% endif %}
+              <div id="settings-cover-placeholder" class="settings-cover-placeholder" {% if data.selected_song %}style="display:none;"{% endif %}>暂无封面</div>
+            </div>
+          </div>
+          <div class="settings-detail-main">
             <p class="eyebrow">Song Details</p>
             <h2 id="settings-detail-title">{{ data.selected_song.title if data.selected_song else '歌曲详情' }}</h2>
             <p class="hint" id="settings-detail-subtitle">{{ data.selected_song.artist if data.selected_song else '右侧显示所选歌曲的完整信息' }}</p>
-          </div>
-          <div class="settings-badges">
-            <span class="settings-badge">歌曲资料</span>
-            <span class="settings-badge settings-badge-secondary">本地扫描</span>
+            <div class="settings-badges settings-badges-inline">
+              <span class="settings-badge">歌曲资料</span>
+              <span class="settings-badge settings-badge-secondary">本地扫描</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="settings-hero-grid">
-        <div class="card settings-cover-card">
-          <div class="settings-panel-title-row">
-            <h3>专辑封面</h3>
-            <span class="settings-badge settings-badge-ghost">Cover</span>
-          </div>
-          <div class="settings-cover-frame">
-            {% if data.selected_song %}
-            <img id="settings-cover-image" class="settings-cover-image" src="{{ data.selected_song.cover_url }}" alt="cover" onerror="handleSettingsCoverError(this)">
-            {% else %}
-            <div id="settings-cover-placeholder" class="settings-cover-placeholder">暂无封面</div>
-            {% endif %}
-            <div id="settings-cover-placeholder" class="settings-cover-placeholder" {% if data.selected_song %}style="display:none;"{% endif %}>暂无封面</div>
-          </div>
-        </div>
-        <div class="card settings-panel-card">
-          <div class="settings-panel-title-row">
-            <h3>当前歌曲摘要</h3>
-            <span class="settings-badge">Now Playing</span>
-          </div>
-          <ul class="simple-list compact-list config-list settings-list-block">
-            <li><strong>标题：</strong> <span data-field="title">{{ data.selected_song.title if data.selected_song else '-' }}</span></li>
-            <li><strong>艺术家：</strong> <span data-field="artist">{{ data.selected_song.artist if data.selected_song else '-' }}</span></li>
-            <li><strong>专辑：</strong> <span data-field="album">{{ data.selected_song.album if data.selected_song else '-' }}</span></li>
-            <li><strong>格式：</strong> <span data-field="suffix">{{ data.selected_song.suffix if data.selected_song else '-' }}</span></li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="settings-panel-grid">
+      <section class="settings-panel-grid settings-panel-grid-compact">
         <div class="card settings-panel-card">
           <div class="settings-panel-title-row">
             <h3>基础信息</h3>
@@ -121,19 +102,6 @@
             <li><strong>艺术家：</strong> <span data-field="artist">{{ data.selected_song.artist if data.selected_song else '-' }}</span></li>
             <li><strong>专辑：</strong> <span data-field="album">{{ data.selected_song.album if data.selected_song else '-' }}</span></li>
             <li><strong>文件名：</strong> <span data-field="filename">{{ data.selected_song.filename if data.selected_song else '-' }}</span></li>
-          </ul>
-        </div>
-
-        <div class="card settings-panel-card">
-          <div class="settings-panel-title-row">
-            <h3>标签与状态</h3>
-            <span class="settings-badge settings-badge-info">元数据</span>
-          </div>
-          <ul class="simple-list compact-list config-list settings-list-block" id="settings-song-meta">
-            <li><strong>音轨：</strong> <span data-field="track">{{ data.selected_song.track if data.selected_song else '-' }}</span></li>
-            <li><strong>碟号：</strong> <span data-field="disc">{{ data.selected_song.disc if data.selected_song else '-' }}</span></li>
-            <li><strong>年份：</strong> <span data-field="year">{{ data.selected_song.year if data.selected_song else '-' }}</span></li>
-            <li><strong>流派：</strong> <span data-field="genre">{{ data.selected_song.genre if data.selected_song else '-' }}</span></li>
           </ul>
         </div>
 
@@ -150,43 +118,34 @@
           </ul>
         </div>
 
-        <div class="card settings-panel-card">
+        <div class="card settings-panel-card settings-panel-card-wide">
           <div class="settings-panel-title-row">
             <h3>路径信息</h3>
             <span class="settings-badge settings-badge-secondary">文件</span>
           </div>
-          <ul class="simple-list compact-list config-list settings-list-block" id="settings-song-paths">
-            <li><strong>完整路径：</strong> <span class="path-block" data-field="source_file">{{ data.selected_song.source_file if data.selected_song else '-' }}</span></li>
-            <li><strong>所在目录：</strong> <span class="path-block" data-field="folder_path">{{ data.selected_song.folder_path if data.selected_song else '-' }}</span></li>
-            <li><strong>音乐根目录：</strong> <span class="path-block">{{ data.resolved_paths.music_root }}</span></li>
-            <li><strong>配置文件：</strong> <span class="path-block">{{ data.resolved_paths.config_path }}</span></li>
-          </ul>
+          <div class="settings-path-compact" id="settings-song-paths">
+            <div class="settings-path-item">
+              <span class="settings-path-label">完整路径</span>
+              <span class="path-block settings-path-value" data-field="source_file">{{ data.selected_song.source_file if data.selected_song else '-' }}</span>
+            </div>
+            <div class="settings-path-item">
+              <span class="settings-path-label">所在目录</span>
+              <span class="path-block settings-path-value" data-field="folder_path">{{ data.selected_song.folder_path if data.selected_song else '-' }}</span>
+            </div>
+            <div class="settings-path-inline-grid">
+              <div class="settings-path-item settings-path-item-inline">
+                <span class="settings-path-label">音乐根目录</span>
+                <span class="path-block settings-path-value">{{ data.resolved_paths.music_root }}</span>
+              </div>
+              <div class="settings-path-item settings-path-item-inline">
+                <span class="settings-path-label">配置文件</span>
+                <span class="path-block settings-path-value">{{ data.resolved_paths.config_path }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="settings-editor-grid">
-        <div class="card settings-panel-card settings-editor-card">
-          <div class="settings-panel-title-row">
-            <h3>项目配置 JSON</h3>
-            <span class="settings-badge">JSON</span>
-          </div>
-          <p class="hint">这里还是保留项目配置编辑能力，保存后会写回当前配置文件，并自动备份原配置。</p>
-          <div class="editor-actions">
-            <button type="button" class="btn btn-primary" onclick="saveConfigJson()">保存配置</button>
-            <button type="button" class="btn" onclick="resetConfigJson()">恢复当前读取值</button>
-          </div>
-          <textarea id="config-json-editor" class="config-editor">{{ data.config | tojson(indent=2) }}</textarea>
-        </div>
-
-        <div class="card settings-panel-card settings-preview-card">
-          <div class="settings-panel-title-row">
-            <h3>当前配置内容</h3>
-            <span class="settings-badge settings-badge-ghost">只读预览</span>
-          </div>
-          <p class="hint">保存前可以先对照右侧预览确认。</p>
-          <pre class="config-json" id="config-json-preview">{{ data.config | tojson(indent=2) }}</pre>
-        </div>
-      </section>
     </div>
   </section>
 
@@ -419,8 +378,6 @@ function showJobBanner(message, tone = 'info') {
   node.className = tone === 'error' ? 'error' : 'hint';
 }
 
-const INITIAL_CONFIG_JSON = {% if page == 'settings' %}{{ data.config | tojson(indent=2) | tojson }}{% else %}null{% endif %};
-
 function selectSettingsSong(button) {
   if (!button) return;
   document.querySelectorAll('.settings-song-item').forEach(node => node.classList.remove('active'));
@@ -470,56 +427,6 @@ function handleSettingsCoverError(img) {
   img.style.display = 'none';
   const placeholder = document.getElementById('settings-cover-placeholder');
   if (placeholder) placeholder.style.display = 'flex';
-}
-
-function resetConfigJson() {
-  const editor = document.getElementById('config-json-editor');
-  const preview = document.getElementById('config-json-preview');
-  if (!editor || INITIAL_CONFIG_JSON === null) return;
-  editor.value = INITIAL_CONFIG_JSON;
-  if (preview) preview.textContent = INITIAL_CONFIG_JSON;
-  showJobBanner('已恢复到当前读取到的配置内容');
-}
-
-async function saveConfigJson() {
-  const editor = document.getElementById('config-json-editor');
-  const preview = document.getElementById('config-json-preview');
-  if (!editor) return false;
-  let payload;
-  try {
-    payload = JSON.parse(editor.value);
-  } catch (error) {
-    showJobBanner(`配置 JSON 格式不对：${error.message}`, 'error');
-    return false;
-  }
-
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    showJobBanner('配置内容必须是一个 JSON 对象', 'error');
-    return false;
-  }
-
-  showJobBanner('正在保存配置...');
-  try {
-    const res = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok) {
-      showJobBanner(data?.error || '保存失败', 'error');
-      return false;
-    }
-    const pretty = JSON.stringify(payload, null, 2);
-    editor.value = pretty;
-    if (preview) preview.textContent = pretty;
-    showJobBanner(`✅ 配置已保存${data?.backup ? `，已自动备份为 ${data.backup}` : ''}`);
-    setTimeout(() => location.reload(), 800);
-    return false;
-  } catch (error) {
-    showJobBanner(`保存失败：${error.message}`, 'error');
-    return false;
-  }
 }
 
 function renderLyricsCandidates(audioPath, candidates) {
