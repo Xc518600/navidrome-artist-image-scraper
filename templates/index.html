@@ -34,7 +34,7 @@
   <section class="settings-shell">
     <aside class="settings-sidebar card settings-song-sidebar">
       <div class="settings-sidebar-head">
-        <p class="eyebrow">Songs</p>
+        <p class="eyebrow">本地歌曲</p>
         <h2>本地歌曲</h2>
         <p class="hint">左侧显示本地歌曲文件，点一首歌，右侧查看这首歌的详情、专辑和文件信息。</p>
       </div>
@@ -80,14 +80,24 @@
             </div>
           </div>
           <div class="settings-detail-main">
-            <p class="eyebrow">Song Details</p>
+            <p class="eyebrow">歌词搜索</p>
             <h2 id="settings-detail-title">{{ data.selected_song.title if data.selected_song else '歌曲详情' }}</h2>
             <p class="hint" id="settings-detail-subtitle">{{ data.selected_song.artist if data.selected_song else '右侧显示所选歌曲的完整信息' }}</p>
-            <div class="settings-badges settings-badges-inline">
-              <span class="settings-badge">歌曲资料</span>
-              <span class="settings-badge settings-badge-secondary">本地扫描</span>
+            <div class="settings-lyrics-search-bar">
+              <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词">
+              <button type="button" class="btn btn-primary settings-lyrics-search-button" onclick="return searchSettingsLyrics()">搜索歌词</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="card" id="settings-lyrics-candidate-panel" style="display:none;">
+        <div class="settings-panel-title-row">
+          <h3>歌词候选结果</h3>
+          <span class="settings-badge settings-badge-secondary">手动选择</span>
+        </div>
+        <p class="hint" id="settings-lyrics-candidate-title"></p>
+        <ul class="simple-list compact-list" id="settings-lyrics-candidate-list"></ul>
         </div>
       </section>
 
@@ -389,6 +399,7 @@ function selectSettingsSong(button) {
     showJobBanner(`歌曲详情解析失败：${error.message}`, 'error');
     return;
   }
+  window.__selectedSettingsSong = song;
   const title = document.getElementById('settings-detail-title');
   const subtitle = document.getElementById('settings-detail-subtitle');
   if (title) title.textContent = song.title || '歌曲详情';
@@ -427,6 +438,60 @@ function handleSettingsCoverError(img) {
   img.style.display = 'none';
   const placeholder = document.getElementById('settings-cover-placeholder');
   if (placeholder) placeholder.style.display = 'flex';
+}
+
+function renderSettingsLyricsCandidates(audioPath, candidates, keyword = '') {
+  const panel = document.getElementById('settings-lyrics-candidate-panel');
+  const title = document.getElementById('settings-lyrics-candidate-title');
+  const list = document.getElementById('settings-lyrics-candidate-list');
+  if (!panel || !title || !list) return;
+  list.innerHTML = '';
+  if (!Array.isArray(candidates) || !candidates.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  title.textContent = `已按“${keyword || audioPath}”找到候选歌词，请选择最匹配的一条写入当前歌曲。`;
+  for (const item of candidates) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '未知标题';
+    li.appendChild(strong);
+    li.appendChild(document.createElement('br'));
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source} ｜ 分数：${item.score ?? 0}`;
+    li.appendChild(meta);
+    li.appendChild(document.createElement('br'));
+    const preview = document.createElement('span');
+    preview.className = 'muted';
+    preview.textContent = `预览：${item.lyrics_preview || ''}`;
+    li.appendChild(preview);
+    li.appendChild(document.createElement('br'));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-small';
+    button.textContent = '选这个歌词写入';
+    button.onclick = () => submitCandidateWrite(audioPath, item.token);
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+  panel.style.display = 'block';
+}
+
+async function searchSettingsLyrics() {
+  const input = document.getElementById('settings-lyrics-search-input');
+  const song = window.__selectedSettingsSong;
+  const keyword = String(input?.value || '').trim();
+  if (!song?.source_file) {
+    showJobBanner('还没有选中歌曲，先点左侧一首歌再搜索。', 'error');
+    return false;
+  }
+  if (!keyword) {
+    showJobBanner('先输入歌曲名或歌手名再搜索。', 'error');
+    return false;
+  }
+  showJobBanner(`正在搜索与“${keyword}”匹配的歌词候选...`);
+  return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, { suppressReload: true, suppressSuccessBanner: true, renderToSettings: true });
 }
 
 function renderLyricsCandidates(audioPath, candidates) {
@@ -589,7 +654,8 @@ async function submitJob(event, mode) {
   return false;
 }
 
-async function submitTargetJob(mode, target) {
+async function submitTargetJob(mode, target, options = {}) {
+  const { suppressReload = false, suppressSuccessBanner = false, renderToSettings = false } = options;
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -611,9 +677,15 @@ async function submitTargetJob(mode, target) {
     const manualCandidates = job?.manual_candidates || {};
     const candidates = manualCandidates?.[target?.audio_path || ''];
     const resultMessage = summarizeJobResult(job, '这首歌歌词刮削任务已结束');
-    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    if (!suppressSuccessBanner || resultMessage.startsWith('❌')) {
+      showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    }
     if (Array.isArray(candidates) && candidates.length) {
-      renderLyricsCandidates(target?.audio_path || '', candidates);
+      if (renderToSettings) {
+        renderSettingsLyricsCandidates(target?.audio_path || '', candidates, target?.search_keyword || '');
+      } else {
+        renderLyricsCandidates(target?.audio_path || '', candidates);
+      }
       return false;
     }
   } else if (mode === 'album-art-online-write') {
@@ -638,12 +710,16 @@ async function submitTargetJob(mode, target) {
     if (job?.returncode === 0) {
       removePendingArtistFromUI(target?.artist || '');
     }
-    setTimeout(() => location.reload(), 500);
+    if (!suppressReload) {
+      setTimeout(() => location.reload(), 500);
+    }
     return false;
   } else {
     showJobBanner('目标任务已启动');
   }
-  setTimeout(() => location.reload(), 500);
+  if (!suppressReload) {
+    setTimeout(() => location.reload(), 500);
+  }
   return false;
 }
 
@@ -712,6 +788,12 @@ async function autoBootstrapHomePage() {
 
 document.addEventListener('DOMContentLoaded', () => {
   autoBootstrapHomePage();
+  const activeSongButton = document.querySelector('.settings-song-item.active');
+  if (activeSongButton) {
+    try {
+      window.__selectedSettingsSong = JSON.parse(activeSongButton.dataset.song || '{}');
+    } catch (e) {}
+  }
 });
 
 

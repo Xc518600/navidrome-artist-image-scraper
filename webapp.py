@@ -1952,7 +1952,7 @@ def write_music_tag_web_lyrics(overwrite: bool = False) -> dict:
     return result
 
 
-def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_path: Optional[str] = None) -> dict:
+def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_path: Optional[str] = None, search_keyword: Optional[str] = None) -> dict:
     config = get_config()
     music_root = resolve_music_root(config)
     extensions = set(s.lower() for s in config.get("audio_extensions", []))
@@ -1975,45 +1975,51 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
     append_job_log(f"[INFO] online lyric targets: {result['planned']}")
 
     for item in rows:
-        audio_path = Path(item['source_file'])
-        fetched = search_multisource_lyrics(str(audio_path.resolve()))
+        actual_audio_path = Path(item['source_file'])
+        lookup_audio_path = actual_audio_path
+        if search_keyword:
+            try:
+                lookup_audio_path = actual_audio_path.with_name(f"{search_keyword}{actual_audio_path.suffix or '.mp3'}")
+            except Exception:
+                lookup_audio_path = actual_audio_path
+        fetched = search_multisource_lyrics(str(lookup_audio_path.resolve()))
         if not fetched.get('ok'):
             result['failed'] += 1
-            candidate_rows = build_lyric_candidates(audio_path)
+            candidate_rows = build_lyric_candidates(lookup_audio_path)
             if candidate_rows:
-                result.setdefault('manual_candidates', {})[str(audio_path)] = candidate_rows
-                append_job_log(f"[INFO] lyric candidates available -> {audio_path} :: {len(candidate_rows)}")
-            append_job_log(f"[FAIL] lyric fetch -> {audio_path} :: {fetched.get('error')}")
+                result.setdefault('manual_candidates', {})[str(actual_audio_path)] = candidate_rows
+                append_job_log(f"[INFO] lyric candidates available -> {actual_audio_path} :: {len(candidate_rows)}")
+            append_job_log(f"[FAIL] lyric fetch -> {actual_audio_path} :: {fetched.get('error')}")
             continue
         result['fetched'] += 1
         lyrics = str(fetched.get('lyrics') or '').strip()
         if not lyrics:
             result['failed'] += 1
-            append_job_log(f"[FAIL] empty lyric payload -> {audio_path}")
+            append_job_log(f"[FAIL] empty lyric payload -> {actual_audio_path}")
             continue
-        ok, reason = write_lyric_to_audio_file(audio_path, lyrics, overwrite=overwrite)
+        ok, reason = write_lyric_to_audio_file(actual_audio_path, lyrics, overwrite=overwrite)
         if ok:
             clear_audio_metadata_flags_cache()
             result['written_embedded'] += 1
-            remove_song_from_lyrics_scan_cache(audio_path)
-            append_job_log(f"[WRITE] online embedded lyrics -> {audio_path}")
+            remove_song_from_lyrics_scan_cache(actual_audio_path)
+            append_job_log(f"[WRITE] online embedded lyrics -> {actual_audio_path}")
             continue
         if 'already exist' in reason and not overwrite:
             result['skipped_existing'] += 1
-            remove_song_from_lyrics_scan_cache(audio_path)
-            append_job_log(f"[SKIP] {audio_path} ({reason})")
+            remove_song_from_lyrics_scan_cache(actual_audio_path)
+            append_job_log(f"[SKIP] {actual_audio_path} ({reason})")
             continue
         try:
-            sidecar = audio_path.with_suffix('.lrc')
+            sidecar = actual_audio_path.with_suffix('.lrc')
             if sidecar.exists() and not overwrite:
                 result['skipped_existing'] += 1
-                remove_song_from_lyrics_scan_cache(audio_path)
+                remove_song_from_lyrics_scan_cache(actual_audio_path)
                 append_job_log(f"[SKIP] {sidecar} (sidecar lyric already exists)")
                 continue
             sidecar.write_text(lyrics, encoding='utf-8')
             clear_audio_metadata_flags_cache()
             result['written_sidecar'] += 1
-            remove_song_from_lyrics_scan_cache(audio_path)
+            remove_song_from_lyrics_scan_cache(actual_audio_path)
             append_job_log(f"[WRITE] online sidecar lyric -> {sidecar}")
         except Exception as exc:
             result['failed'] += 1
@@ -2904,7 +2910,8 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
                 job_state["command"] = ["online-lyrics-write", f"overwrite={overwrite}"]
                 append_job_log("[INFO] starting online lyric scrape job")
                 only_audio_path = (target or {}).get("audio_path") if target else None
-                result = write_online_lyrics(overwrite=overwrite, only_audio_path=only_audio_path)
+                search_keyword = (target or {}).get("search_keyword") if target else None
+                result = write_online_lyrics(overwrite=overwrite, only_audio_path=only_audio_path, search_keyword=search_keyword)
                 if isinstance(result, dict):
                     for key, value in result.items():
                         if key not in {"ok", "log"}:
