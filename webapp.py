@@ -192,6 +192,48 @@ def collect_library_preview_rows(music_root: Path, extensions: set[str], skip_di
     }
 
 
+def collect_song_detail_rows(music_root: Path, extensions: set[str], skip_dirs: List[str], limit: int = 300) -> list[dict]:
+    rows = []
+    for current_root, dirnames, filenames in os.walk(music_root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+        current = Path(current_root)
+        matched = sorted([name for name in filenames if (current / name).suffix.lower() in extensions])
+        if not matched:
+            continue
+        for name in matched:
+            if len(rows) >= limit:
+                return rows
+            audio_path = current / name
+            try:
+                tags = extract_audio_tags(audio_path)
+            except Exception:
+                tags = {}
+            flags = read_audio_metadata_flags(str(audio_path.resolve()))
+            title = str(tags.get("title") or audio_path.stem).strip()
+            artist = str(tags.get("artist") or tags.get("album_artist") or tags.get("albumartist") or current.name).strip()
+            album = str(tags.get("album") or current.name).strip()
+            rows.append({
+                "id": str(audio_path.resolve()),
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "filename": audio_path.name,
+                "source_file": str(audio_path),
+                "folder_path": str(current),
+                "duration": int(flags.get("duration") or 0),
+                "has_embedded_cover": bool(flags.get("has_embedded_cover")),
+                "has_embedded_lyrics": bool(flags.get("has_embedded_lyrics")),
+                "has_sidecar_lyrics": has_sidecar_lyric(audio_path),
+                "suffix": audio_path.suffix.lower(),
+                "track": str(tags.get("track") or "").strip(),
+                "disc": str(tags.get("disc") or "").strip(),
+                "year": str(tags.get("year") or tags.get("date") or "").strip(),
+                "genre": str(tags.get("genre") or "").strip(),
+                "cover_url": f"/api/song-cover?path={quote(str(audio_path.resolve()), safe='')}",
+            })
+    return rows
+
+
 @lru_cache(maxsize=1)
 def load_music_tag_web_lyrics_map() -> dict[str, str]:
     if not MUSIC_TAG_WEB_DB.exists():
@@ -2941,6 +2983,10 @@ def index():
 
     if page == "settings":
         config = get_config()
+        music_root = resolve_music_root(config)
+        extensions = set(s.lower() for s in config.get("audio_extensions", []))
+        skip_dirs = list(config.get("skip_dirs", []))
+        songs = collect_song_detail_rows(music_root, extensions, skip_dirs, limit=300)
         resolved_paths = {
             "config_path": str(CONFIG_PATH),
             "music_root": str(resolve_music_root(config)),
@@ -2950,7 +2996,7 @@ def index():
         return render_template(
             "index.html",
             page=page,
-            data={"config": config, "resolved_paths": resolved_paths},
+            data={"config": config, "resolved_paths": resolved_paths, "songs": songs, "selected_song": songs[0] if songs else None},
             current_filter=current_filter,
             asset_version=ASSET_VERSION,
             page_updated_at=PAGE_UPDATED_AT,
@@ -3178,6 +3224,56 @@ def api_config():
         return jsonify({"ok": True, "message": "配置已保存", "backup": str(backup_path.name)})
     except Exception as e:
         return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
+
+
+@app.route("/api/song-cover")
+def api_song_cover():
+    audio_path_raw = str(request.args.get("path") or "").strip()
+    if not audio_path_raw:
+        abort(400)
+    audio_path = Path(audio_path_raw)
+    if not audio_path.exists() or not audio_path.is_file():
+        abort(404)
+
+    folder = audio_path.parent
+    for candidate in [
+        folder / "cover.jpg",
+        folder / "cover.png",
+        folder / "folder.jpg",
+        folder / "folder.png",
+        folder / "Cover.jpg",
+        folder / "Cover.png",
+        folder / "Folder.jpg",
+        folder / "Folder.png",
+    ]:
+        if candidate.exists() and candidate.is_file():
+            return send_file(candidate)
+
+    try:
+        audio = MutagenFile(audio_path)
+        if audio is not None:
+            pictures = getattr(audio, "pictures", None)
+            if pictures:
+                pic = pictures[0]
+                return send_file(BytesIO(pic.data), mimetype=getattr(pic, "mime", None) or "image/jpeg")
+            tags = getattr(audio, "tags", None)
+            if tags:
+                for key in tags.keys():
+                    upper = str(key).upper()
+                    if "APIC" in upper:
+                        value = tags.get(key)
+                        data = getattr(value, "data", None)
+                        if data:
+                            return send_file(BytesIO(data), mimetype=getattr(value, "mime", None) or "image/jpeg")
+                    if "COVR" in upper:
+                        value = tags.get(key)
+                        if value:
+                            blob = value[0]
+                            data = bytes(blob)
+                            return send_file(BytesIO(data), mimetype="image/jpeg")
+    except Exception:
+        pass
+    abort(404)
 
 
 def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = False) -> dict:
