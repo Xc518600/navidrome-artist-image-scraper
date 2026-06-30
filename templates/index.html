@@ -490,6 +490,14 @@ async function searchSettingsLyrics() {
     showJobBanner('先输入歌曲名或歌手名再搜索。', 'error');
     return false;
   }
+
+  const jobRes = await fetch('/api/job');
+  const currentJob = await jobRes.json().catch(() => ({}));
+  if (currentJob?.running) {
+    showJobBanner('后台当前还有任务在跑，先等它结束，再搜索歌词。', 'error');
+    return false;
+  }
+
   showJobBanner(`正在搜索与“${keyword}”匹配的歌词候选...`);
   return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, { suppressReload: true, suppressSuccessBanner: true, renderToSettings: true });
 }
@@ -663,7 +671,10 @@ async function submitTargetJob(mode, target, options = {}) {
   });
   const data = await res.json();
   if (!res.ok) {
-    const message = data.error || '任务启动失败';
+    let message = data.error || '任务启动失败';
+    if (res.status === 409 && data.error === 'job already running') {
+      message = '后台当前还有任务在跑，请稍等它结束后再试。';
+    }
     showJobBanner(message, 'error');
     return false;
   }

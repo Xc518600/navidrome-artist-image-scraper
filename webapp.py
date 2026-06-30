@@ -425,8 +425,9 @@ def _candidate_title_artist_score(title_cf: str, artist_cf: str, part_cfs: list[
     return score
 
 
-def build_lyric_candidates(audio_path: Path, max_candidates: int = 8) -> list[dict]:
+def build_lyric_candidates(audio_path: Path, max_candidates: int = 8, store_audio_path: Optional[Path] = None) -> list[dict]:
     context = track_search_context(audio_path)
+    candidate_store_audio_path = (store_audio_path or audio_path).resolve()
     title = str(context.get("title") or "").strip()
     artist = str(context.get("artist") or "").strip()
     artist_parts = context.get("artist_parts") or []
@@ -454,7 +455,7 @@ def build_lyric_candidates(audio_path: Path, max_candidates: int = 8) -> list[di
             "lyrics_preview": lyrics[:180].replace("\n", " / "),
         }
         lyrics_candidate_store[token] = {
-            "audio_path": str(audio_path.resolve()),
+            "audio_path": str(candidate_store_audio_path),
             "source": source,
             "candidate_id": candidate_id,
             "lyrics": lyrics,
@@ -1985,7 +1986,7 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
         fetched = search_multisource_lyrics(str(lookup_audio_path.resolve()))
         if not fetched.get('ok'):
             result['failed'] += 1
-            candidate_rows = build_lyric_candidates(lookup_audio_path)
+            candidate_rows = build_lyric_candidates(lookup_audio_path, store_audio_path=actual_audio_path)
             if candidate_rows:
                 result.setdefault('manual_candidates', {})[str(actual_audio_path)] = candidate_rows
                 append_job_log(f"[INFO] lyric candidates available -> {actual_audio_path} :: {len(candidate_rows)}")
