@@ -18,7 +18,7 @@ from urllib.parse import quote, unquote
 
 import requests
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for, Response
 from mutagen import File as MutagenFile
 from mutagen.flac import FLAC
 from mutagen.id3 import ID3, ID3NoHeaderError, USLT
@@ -3328,12 +3328,12 @@ def api_config():
         return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
 
 
-@app.route("/api/song-cover")
+@app.route("/api/song-cover", methods=["GET", "HEAD"])
 def api_song_cover():
     audio_path_raw = str(request.args.get("path") or "").strip()
     if not audio_path_raw:
         abort(400)
-    audio_path = Path(audio_path_raw)
+    audio_path = Path(unquote(audio_path_raw))
     if not audio_path.exists() or not audio_path.is_file():
         abort(404)
 
@@ -3357,7 +3357,13 @@ def api_song_cover():
             pictures = getattr(audio, "pictures", None)
             if pictures:
                 pic = pictures[0]
-                return send_file(BytesIO(pic.data), mimetype=getattr(pic, "mime", None) or "image/jpeg")
+                mime = getattr(pic, "mime", None) or "image/jpeg"
+                response = Response(pic.data, mimetype=mime)
+                response.headers["Content-Type"] = mime
+                response.headers["Content-Disposition"] = 'inline; filename="cover.jpg"'
+                response.headers["Cache-Control"] = "public, max-age=86400"
+                response.headers["Content-Length"] = str(len(pic.data))
+                return response
             tags = getattr(audio, "tags", None)
             if tags:
                 for key in tags.keys():
@@ -3366,13 +3372,24 @@ def api_song_cover():
                         value = tags.get(key)
                         data = getattr(value, "data", None)
                         if data:
-                            return send_file(BytesIO(data), mimetype=getattr(value, "mime", None) or "image/jpeg")
+                            mime = getattr(value, "mime", None) or "image/jpeg"
+                            response = Response(data, mimetype=mime)
+                            response.headers["Content-Type"] = mime
+                            response.headers["Content-Disposition"] = 'inline; filename="cover.jpg"'
+                            response.headers["Cache-Control"] = "public, max-age=86400"
+                            response.headers["Content-Length"] = str(len(data))
+                            return response
                     if "COVR" in upper:
                         value = tags.get(key)
                         if value:
                             blob = value[0]
                             data = bytes(blob)
-                            return send_file(BytesIO(data), mimetype="image/jpeg")
+                            response = Response(data, mimetype="image/jpeg")
+                            response.headers["Content-Type"] = "image/jpeg"
+                            response.headers["Content-Disposition"] = 'inline; filename="cover.jpg"'
+                            response.headers["Cache-Control"] = "public, max-age=86400"
+                            response.headers["Content-Length"] = str(len(data))
+                            return response
     except Exception:
         pass
     abort(404)
