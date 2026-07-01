@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -1142,25 +1143,31 @@ def search_qq_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     for term in query_terms[:6]:
         try:
             resp = session.get(
-                "https://c.y.qq.com/soso/fcgi-bin/client_search_cp",
-                params={"w": term, "n": str(limit), "p": "1", "format": "json"},
+                "https://c6.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg",
+                params={"key": term, "format": "json"},
                 headers={"Referer": "https://y.qq.com/", "Origin": "https://y.qq.com"},
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            items = (((resp.json() or {}).get("data") or {}).get("song") or {}).get("list") or []
+            items = ((((resp.json() or {}).get("data") or {}).get("song") or {}).get("itemlist") or [])
         except Exception as exc:
             errors.append(str(exc))
             continue
 
-        for item in items:
-            songmid = str(item.get("songmid") or "").strip()
+        for raw_item in items:
+            songmid = str(raw_item.get("mid") or raw_item.get("songmid") or "").strip()
             if not songmid or songmid in seen:
                 continue
             seen.add(songmid)
-            song_name = str(item.get("songname") or item.get("title") or "").strip()
-            singers = item.get("singer") or []
-            artists = [str(s.get("name") or "").strip() for s in singers if s.get("name")]
+            song_name = str(raw_item.get("name") or raw_item.get("songname") or raw_item.get("title") or "").strip()
+            singer_text = str(raw_item.get("singer") or "").strip()
+            artists = [part.strip() for part in singer_text.split("/") if part.strip()]
+            item = {
+                "songmid": songmid,
+                "songname": song_name,
+                "title": song_name,
+                "singer": [{"name": artist} for artist in artists],
+            }
             score = _score_song_candidate(title_cf, artist_cf, part_cfs, preferred_title_cf, preferred_artist_cf, song_name, artists, boost_exact_combo=True)
             matches.append({"score": score, "item": item, "term": term})
 
@@ -1344,14 +1351,18 @@ def fetch_qq_candidate_lyric(candidate: dict) -> str:
     try:
         resp = session.get(
             "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg",
-            params={"songmid": songmid, "format": "json", "nobase64": "0"},
+            params={"songmid": songmid, "format": "json", "nobase64": "1"},
             headers={"Referer": "https://y.qq.com/", "Origin": "https://y.qq.com"},
             timeout=min(request_timeout(), 8),
         )
         resp.raise_for_status()
         data = resp.json() or {}
-        lyric_b64 = str(data.get("lyric") or "").strip()
-        return base64.b64decode(lyric_b64).decode("utf-8", errors="ignore").strip() if lyric_b64 else ""
+        raw_lyric = str(data.get("lyric") or "").strip()
+        if not raw_lyric or raw_lyric in ("[]", "{}"):
+            return ""
+        if "[" in raw_lyric and "]" in raw_lyric:
+            return raw_lyric
+        return base64.b64decode(raw_lyric).decode("utf-8", errors="ignore").strip()
     except Exception:
         return ""
 
