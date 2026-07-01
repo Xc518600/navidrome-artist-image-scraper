@@ -440,6 +440,18 @@ function handleSettingsCoverError(img) {
   if (placeholder) placeholder.style.display = 'flex';
 }
 
+function formatLyricsSourceLabel(source) {
+  const value = String(source || '').trim().toLowerCase();
+  const map = {
+    lrclib: 'LRCLIB',
+    netease: '网易云',
+    qq: 'QQ音乐',
+    kugou: '酷狗',
+    kuwo: '酷我'
+  };
+  return map[value] || (source || '未知来源');
+}
+
 function renderSettingsLyricsCandidates(audioPath, candidates, keyword = '') {
   const panel = document.getElementById('settings-lyrics-candidate-panel');
   const title = document.getElementById('settings-lyrics-candidate-title');
@@ -459,7 +471,7 @@ function renderSettingsLyricsCandidates(audioPath, candidates, keyword = '') {
     li.appendChild(document.createElement('br'));
     const meta = document.createElement('span');
     meta.className = 'muted';
-    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source} ｜ 分数：${item.score ?? 0}`;
+    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 歌词来源：${formatLyricsSourceLabel(item.source)} ｜ 分数：${item.score ?? 0}`;
     li.appendChild(meta);
     li.appendChild(document.createElement('br'));
     const preview = document.createElement('span');
@@ -521,7 +533,7 @@ function renderLyricsCandidates(audioPath, candidates) {
     li.appendChild(document.createElement('br'));
     const meta = document.createElement('span');
     meta.className = 'muted';
-    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source} ｜ 分数：${item.score ?? 0}`;
+    meta.textContent = `歌手：${item.artist_text || '-'} ｜ 专辑：${item.album || '-'} ｜ 歌词来源：${formatLyricsSourceLabel(item.source)} ｜ 分数：${item.score ?? 0}`;
     li.appendChild(meta);
     li.appendChild(document.createElement('br'));
     const preview = document.createElement('span');
@@ -544,7 +556,7 @@ async function submitCandidateWrite(audioPath, candidateToken) {
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({mode: 'lyrics-candidate-write', target: {audio_path: audioPath, candidate_token: candidateToken}})
+    body: JSON.stringify({mode: 'lyrics-candidate-write', overwrite: true, target: {audio_path: audioPath, candidate_token: candidateToken}})
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.ok) {
@@ -552,7 +564,8 @@ async function submitCandidateWrite(audioPath, candidateToken) {
     showJobBanner(message, 'error');
     return false;
   }
-  const message = `✅ 已写入歌词：${data.title || ''}`;
+  const sourceLabel = data?.source_label || formatLyricsSourceLabel(data?.source);
+  const message = `✅ 已写入歌词：${data.title || ''}（来源：${sourceLabel}）`;
   showJobBanner(message, 'info');
   setTimeout(() => location.reload(), 500);
   return false;
@@ -679,7 +692,9 @@ async function submitTargetJob(mode, target, options = {}) {
     return false;
   }
   if (mode === 'lyrics-online-write') {
-    const waitingMessage = '这首歌的在线歌词刮削任务已启动，正在等待结果...';
+    const waitingMessage = renderToSettings
+      ? `正在按“${target?.search_keyword || ''}”搜索歌词候选...`
+      : '这首歌的在线歌词刮削任务已启动，正在等待结果...';
     showJobBanner(waitingMessage);
     const job = await waitForJobFinish({
       expectMode: mode,
@@ -687,17 +702,20 @@ async function submitTargetJob(mode, target, options = {}) {
     });
     const manualCandidates = job?.manual_candidates || {};
     const candidates = manualCandidates?.[target?.audio_path || ''];
-    const resultMessage = summarizeJobResult(job, '这首歌歌词刮削任务已结束');
-    if (!suppressSuccessBanner || resultMessage.startsWith('❌')) {
-      showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
-    }
     if (Array.isArray(candidates) && candidates.length) {
+      if (!suppressSuccessBanner) {
+        showJobBanner(`已按“${target?.search_keyword || ''}”找到 ${candidates.length} 条歌词候选，请在下面选择。`, 'info');
+      }
       if (renderToSettings) {
         renderSettingsLyricsCandidates(target?.audio_path || '', candidates, target?.search_keyword || '');
       } else {
         renderLyricsCandidates(target?.audio_path || '', candidates);
       }
       return false;
+    }
+    const resultMessage = summarizeJobResult(job, '这首歌歌词刮削任务已结束');
+    if (!suppressSuccessBanner || resultMessage.startsWith('❌')) {
+      showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
     }
   } else if (mode === 'album-art-online-write') {
     const waitingMessage = '这个目录的在线专辑图刮削任务已启动，正在等待结果...';

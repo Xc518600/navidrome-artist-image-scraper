@@ -446,6 +446,13 @@ def build_lyric_candidates(audio_path: Path, max_candidates: int = 8, store_audi
         item = {
             "token": token,
             "source": source,
+            "source_label": {
+                "lrclib": "LRCLIB",
+                "netease": "网易云",
+                "qq": "QQ音乐",
+                "kugou": "酷狗",
+                "kuwo": "酷我",
+            }.get(source, source),
             "candidate_id": candidate_id,
             "title": candidate_title,
             "artists": candidate_artists,
@@ -919,21 +926,22 @@ def search_netease_lyrics(audio_path_str: str) -> dict:
 
             near_matches.append({"score": score, "song": song, "term": term})
 
-            if best is None or score > best[0]:
-                best = (score, song, term)
-        if best and best[0] >= 100:
-            append_job_log(f"[INFO] netease early match score={best[0]} term={best[2]}")
+            if _is_strict_lyric_match(title, artist, candidate_title_raw, artists, preferred_title, preferred_artist):
+                best = (max(score, 140), song, term)
+                break
+        if best is not None:
+            append_job_log(f"[INFO] netease strict match term={best[2]}")
             break
 
     near_matches.sort(key=lambda item: -int(item.get("score") or 0))
 
-    if not best or best[0] < 35:
+    if not best:
         if near_matches[:5]:
             append_job_log("[INFO] netease top near matches -> " + "; ".join([
                 f"score={m.get('score')} title={str((m.get('song') or {}).get('name') or '').strip()} artists={'/'.join([str(a.get('name') or '').strip() for a in (((m.get('song') or {}).get('ar') or [])) if a.get('name')])}"
                 for m in near_matches[:5]
             ]))
-        return {"ok": False, "error": "netease-no-confident-match", "context": context, "errors": errors}
+        return {"ok": False, "error": "netease-no-strict-match", "context": context, "errors": errors}
 
     song_id = best[1].get("id")
     if not song_id:
@@ -963,6 +971,39 @@ def search_netease_lyrics(audio_path_str: str) -> dict:
         "context": context,
         "candidate": best[1],
     }
+
+
+def _has_lyric_variant_marker(title: str) -> bool:
+    text = str(title or "").strip().casefold()
+    if not text:
+        return False
+    markers = [
+        "live", "dj", "remix", "mix", "demo", "cover", "伴奏", "纯音乐", "instrumental",
+        "版", "版本", "片段", "片尾", "片头", "主题曲", "插曲", "现场", "合唱", "对唱",
+        "翻唱", "改编", "新版", "原版", "粤语", "国语", "英文版", "dj版", "live版",
+    ]
+    return any(marker in text for marker in markers)
+
+
+def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candidate_artists: list[str], preferred_title: str = "", preferred_artist: str = "") -> bool:
+    source_title = str(preferred_title or title or "").strip()
+    source_artist = str(preferred_artist or artist or "").strip()
+    source_title_cf = source_title.casefold()
+    source_artist_cf = source_artist.casefold()
+    candidate_title_cf = str(candidate_title or "").strip().casefold()
+    candidate_artists_cf = [str(a or "").strip().casefold() for a in (candidate_artists or []) if str(a or "").strip()]
+
+    if not source_title_cf or not source_artist_cf or not candidate_title_cf or not candidate_artists_cf:
+        return False
+    if is_lyric_title_mismatch_guard(source_title, candidate_title):
+        return False
+    if _has_lyric_variant_marker(candidate_title) and candidate_title_cf != source_title_cf:
+        return False
+    if candidate_title_cf != source_title_cf:
+        return False
+    if source_artist_cf not in candidate_artists_cf:
+        return False
+    return True
 
 
 def _score_song_candidate(title_cf: str, artist_cf: str, part_cfs: list[str], preferred_title_cf: str, preferred_artist_cf: str, song_name: str, artists: list[str], boost_exact_combo: bool = False) -> int:
@@ -1365,6 +1406,7 @@ def search_kuwo_lyrics(audio_path_str: str) -> dict:
     if not title:
         return {"ok": False, "error": "missing-title", "context": context}
 
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
     candidate_result = search_kuwo_song_candidates(audio_path_str, limit=10)
     if not candidate_result.get("ok"):
         return {"ok": False, "error": "kuwo-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
@@ -1378,8 +1420,8 @@ def search_kuwo_lyrics(audio_path_str: str) -> dict:
         if score >= 100:
             break
 
-    if not best or best[0] < 55:
-        return {"ok": False, "error": "kuwo-no-confident-match", "context": context}
+    if not best or not _is_strict_lyric_match(raw_title, raw_artist, str(best[1].get("name") or "").strip(), [str(best[1].get("artist") or "").strip()], preferred_title, preferred_artist):
+        return {"ok": False, "error": "kuwo-no-strict-match", "context": context}
 
     rid = _normalize_kuwo_music_id(best[1])
     if not rid:
@@ -1399,6 +1441,7 @@ def search_kugou_lyrics(audio_path_str: str) -> dict:
     if not title:
         return {"ok": False, "error": "missing-title", "context": context}
 
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
     candidate_result = search_kugou_song_candidates(audio_path_str, limit=10)
     if not candidate_result.get("ok"):
         return {"ok": False, "error": "kugou-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
@@ -1412,8 +1455,8 @@ def search_kugou_lyrics(audio_path_str: str) -> dict:
         if score >= 100:
             break
 
-    if not best or best[0] < 45:
-        return {"ok": False, "error": "kugou-no-confident-match", "context": context}
+    if not best or not _is_strict_lyric_match(raw_title, raw_artist, str(best[1].get("song") or "").strip(), [str(best[1].get("singer") or "").strip()], preferred_title, preferred_artist):
+        return {"ok": False, "error": "kugou-no-strict-match", "context": context}
 
     lyric = fetch_kugou_candidate_lyric(best[1])
 
@@ -1429,6 +1472,7 @@ def search_qq_lyrics(audio_path_str: str) -> dict:
     if not title:
         return {"ok": False, "error": "missing-title", "context": context}
 
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
     candidate_result = search_qq_song_candidates(audio_path_str, limit=10)
     if not candidate_result.get("ok"):
         return {"ok": False, "error": "qq-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
@@ -1442,8 +1486,10 @@ def search_qq_lyrics(audio_path_str: str) -> dict:
         if score >= 100:
             break
 
-    if not best or best[0] < 45:
-        return {"ok": False, "error": "qq-no-confident-match", "context": context}
+    best_artists = [str(s.get("name") or "").strip() for s in ((best[1].get("singer") or [])) if s.get("name")]
+    best_title = str(best[1].get("songname") or best[1].get("title") or "").strip()
+    if not best or not _is_strict_lyric_match(raw_title, raw_artist, best_title, best_artists, preferred_title, preferred_artist):
+        return {"ok": False, "error": "qq-no-strict-match", "context": context}
 
     lyric = fetch_qq_candidate_lyric(best[1])
 
@@ -1995,6 +2041,18 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
                 lookup_audio_path = actual_audio_path.with_name(f"{search_keyword}{actual_audio_path.suffix or '.mp3'}")
             except Exception:
                 lookup_audio_path = actual_audio_path
+
+        if search_keyword:
+            candidate_rows = build_lyric_candidates(lookup_audio_path, store_audio_path=actual_audio_path)
+            if candidate_rows:
+                result.setdefault('manual_candidates', {})[str(actual_audio_path)] = candidate_rows
+                result['fetched'] += 1
+                append_job_log(f"[INFO] settings lyric candidates -> {actual_audio_path} :: {len(candidate_rows)}")
+                continue
+            result['failed'] += 1
+            append_job_log(f"[FAIL] no lyric candidates for settings search -> {actual_audio_path} :: keyword={search_keyword}")
+            continue
+
         fetched = search_multisource_lyrics(str(lookup_audio_path.resolve()))
         if not fetched.get('ok'):
             result['failed'] += 1
@@ -3296,7 +3354,7 @@ def api_song_cover():
     abort(404)
 
 
-def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = False) -> dict:
+def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = True) -> dict:
     audio_path = Path(audio_path_str).resolve()
     payload = lyrics_candidate_store.get(candidate_token)
     if not payload:
@@ -3315,6 +3373,13 @@ def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, ov
             "ok": True,
             "written": True,
             "source": payload.get("source"),
+            "source_label": {
+                "lrclib": "LRCLIB",
+                "netease": "网易云",
+                "qq": "QQ音乐",
+                "kugou": "酷狗",
+                "kuwo": "酷我",
+            }.get(str(payload.get("source") or ""), payload.get("source") or "未知来源"),
             "title": payload.get("title"),
             "artists": payload.get("artists") or [],
             "album": payload.get("album") or "",
