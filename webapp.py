@@ -985,6 +985,13 @@ def _has_lyric_variant_marker(title: str) -> bool:
     return any(marker in text for marker in markers)
 
 
+def _strip_year_suffix(title: str) -> str:
+    text = str(title or "").strip()
+    if not text:
+        return ""
+    return re.sub(r"(?:\s*[-_（(【\[]?\s*)(19|20)\d{2}(?:\s*[）)】\]]?)$", "", text).strip()
+
+
 def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candidate_artists: list[str], preferred_title: str = "", preferred_artist: str = "") -> bool:
     source_title = str(preferred_title or title or "").strip()
     source_artist = str(preferred_artist or artist or "").strip()
@@ -992,6 +999,10 @@ def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candid
     source_artist_cf = source_artist.casefold()
     candidate_title_cf = str(candidate_title or "").strip().casefold()
     candidate_artists_cf = [str(a or "").strip().casefold() for a in (candidate_artists or []) if str(a or "").strip()]
+    base_source_title = _strip_year_suffix(source_title)
+    base_candidate_title = _strip_year_suffix(candidate_title)
+    base_source_title_cf = base_source_title.casefold()
+    base_candidate_title_cf = base_candidate_title.casefold()
 
     if not source_title_cf or not source_artist_cf or not candidate_title_cf or not candidate_artists_cf:
         return False
@@ -999,11 +1010,13 @@ def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candid
         return False
     if _has_lyric_variant_marker(candidate_title) and candidate_title_cf != source_title_cf:
         return False
-    if candidate_title_cf != source_title_cf:
-        return False
     if source_artist_cf not in candidate_artists_cf:
         return False
-    return True
+    if candidate_title_cf == source_title_cf:
+        return True
+    if base_source_title_cf and base_candidate_title_cf and base_source_title_cf == base_candidate_title_cf:
+        return True
+    return False
 
 
 def _score_song_candidate(title_cf: str, artist_cf: str, part_cfs: list[str], preferred_title_cf: str, preferred_artist_cf: str, song_name: str, artists: list[str], boost_exact_combo: bool = False) -> int:
