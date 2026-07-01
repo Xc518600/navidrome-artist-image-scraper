@@ -1163,6 +1163,68 @@ def search_kugou_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     return {"ok": True, "context": context, "matches": matches[:limit]}
 
 
+def _normalize_kuwo_music_id(candidate: dict) -> str:
+    raw = str(candidate.get("rid") or candidate.get("musicrid") or candidate.get("id") or "").strip()
+    if raw.startswith("MUSIC_"):
+        return raw.split("MUSIC_", 1)[1]
+    if "_" in raw:
+        tail = raw.rsplit("_", 1)[-1].strip()
+        if tail.isdigit():
+            return tail
+    return raw
+
+
+def _format_kuwo_time_tag(raw: str) -> str:
+    raw = str(raw or "").strip()
+    if not raw:
+        return ""
+    if ":" in raw:
+        base, dot, frac = raw.partition(".")
+        parts = [p.strip() for p in base.split(":") if p.strip() != ""]
+        if len(parts) >= 2:
+            minute = parts[-2].zfill(2)
+            second = parts[-1].zfill(2)
+            fraction = (frac[:2] if dot else "")
+            if len(fraction) == 1:
+                fraction += "0"
+            if len(fraction) < 2:
+                fraction = "00"
+            return f"{minute}:{second}.{fraction}"
+        return ""
+    try:
+        total = float(raw)
+    except Exception:
+        return ""
+    minute = int(total // 60)
+    second = int(total % 60)
+    fraction = int(round((total - int(total)) * 100))
+    if fraction >= 100:
+        fraction = 0
+        second += 1
+    if second >= 60:
+        second -= 60
+        minute += 1
+    return f"{minute:02d}:{second:02d}.{fraction:02d}"
+
+
+def _extract_kuwo_lyric_text(data: dict) -> str:
+    payload = (data or {}).get("data") or {}
+    raw_lyric = str(payload.get("lrclist") or "").strip()
+    if raw_lyric and raw_lyric not in ("[]", "{}"):
+        return raw_lyric
+    lrclist = payload.get("lrclist") or []
+    if not isinstance(lrclist, list):
+        return ""
+    rows = []
+    for item in lrclist:
+        line = str(item.get("lineLyric") or "").strip()
+        if not line:
+            continue
+        time_str = _format_kuwo_time_tag(str(item.get("time") or item.get("lineTime") or ""))
+        rows.append(f"[{time_str}]{line}" if time_str else line)
+    return "\n".join(rows).strip()
+
+
 def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     audio_path = Path(audio_path_str)
     context = track_search_context(audio_path)
@@ -1171,7 +1233,11 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
         return {"ok": False, "error": "missing-title", "context": context}
 
     session = build_http_session()
-    session.headers.update({"Referer": "https://www.kuwo.cn/", "csrf": ""})
+    session.headers.update({
+        "Referer": "https://www.kuwo.cn/",
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json,text/plain,*/*",
+    })
     query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
     title_cf = raw_title.casefold()
     artist_cf = raw_artist.casefold()
@@ -1185,25 +1251,30 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     for term in query_terms[:6]:
         try:
             resp = session.get(
-                "https://www.kuwo.cn/api/www/search/searchMusicBykeyWord",
-                params={"key": term, "pn": "1", "rn": str(limit), "httpsStatus": "1"},
+                "https://search.kuwo.cn/r.s",
+                params={"ft": "music", "all": term, "rn": str(limit), "pn": "0", "pcjson": "1"},
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            items = (((resp.json() or {}).get("data") or {}).get("list") or [])
+            items = (resp.json() or {}).get("abslist") or []
         except Exception as exc:
             errors.append(str(exc))
             continue
 
         for item in items:
-            candidate_id = str(item.get("rid") or item.get("musicrid") or item.get("id") or "").strip()
+            candidate_id = _normalize_kuwo_music_id(item)
             if not candidate_id or candidate_id in seen:
                 continue
             seen.add(candidate_id)
-            song_name = str(item.get("name") or "").strip()
-            artists = [str(item.get("artist") or "").strip()]
+            song_name = str(item.get("SONGNAME") or item.get("name") or item.get("NAME") or "").strip()
+            artists = [str(item.get("ARTIST") or item.get("artist") or item.get("ARTISTNAME") or "").strip()]
+            normalized_item = dict(item)
+            normalized_item["rid"] = candidate_id
+            normalized_item["musicrid"] = candidate_id
+            normalized_item["name"] = song_name
+            normalized_item["artist"] = artists[0] if artists else ""
             score = _score_song_candidate(title_cf, artist_cf, part_cfs, preferred_title_cf, preferred_artist_cf, song_name, artists, boost_exact_combo=True)
-            matches.append({"score": score, "item": item, "term": term})
+            matches.append({"score": score, "item": normalized_item, "term": term})
 
     matches.sort(key=lambda x: -int(x.get("score") or 0))
     if not matches:
@@ -1266,36 +1337,25 @@ def fetch_kugou_candidate_lyric(candidate: dict) -> str:
 
 def fetch_kuwo_candidate_lyric(candidate: dict) -> str:
     session = build_http_session()
-    session.headers.update({"Referer": "https://www.kuwo.cn/", "csrf": ""})
-    rid = str(candidate.get("rid") or candidate.get("musicrid") or "")
-    if rid.startswith("MUSIC_"):
-        rid = rid.split("MUSIC_", 1)[1]
+    session.headers.update({
+        "Referer": "https://www.kuwo.cn/",
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json,text/plain,*/*",
+    })
+    rid = _normalize_kuwo_music_id(candidate)
     if not rid:
         return ""
     try:
         resp = session.get(
-            "https://www.kuwo.cn/openapi/v1/www/lyric/getlyric",
-            params={"musicId": rid, "httpsStatus": "1"},
+            "http://kuwo.cn/newh5/singles/songinfoandlrc",
+            params={"musicId": rid},
             timeout=min(request_timeout(), 8),
         )
         resp.raise_for_status()
         data = resp.json() or {}
-        lyric = str(((data.get("data") or {}).get("lrclist") or "")).strip()
-        if lyric:
-            return lyric
-        lrclist = (data.get("data") or {}).get("lrclist") or []
-        if isinstance(lrclist, list):
-            rows = []
-            for item in lrclist:
-                line = str(item.get("lineLyric") or "").strip()
-                if not line:
-                    continue
-                time_str = str(item.get("time") or item.get("lineTime") or "").strip()
-                rows.append(f"[{time_str}]{line}" if time_str else line)
-            return "\n".join(rows).strip()
+        return _extract_kuwo_lyric_text(data)
     except Exception:
         return ""
-    return ""
 
 
 def search_kuwo_lyrics(audio_path_str: str) -> dict:
@@ -1305,76 +1365,28 @@ def search_kuwo_lyrics(audio_path_str: str) -> dict:
     if not title:
         return {"ok": False, "error": "missing-title", "context": context}
 
-    session = build_http_session()
-    session.headers.update({"Referer": "https://www.kuwo.cn/", "csrf": ""})
-    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
-    title_cf = raw_title.casefold()
-    artist_cf = raw_artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    candidate_result = search_kuwo_song_candidates(audio_path_str, limit=10)
+    if not candidate_result.get("ok"):
+        return {"ok": False, "error": "kuwo-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
+
     best = None
-    errors = []
-
-    for term in query_terms:
-        append_job_log(f"[INFO] kuwo query -> {term}")
-        try:
-            resp = session.get(
-                "https://www.kuwo.cn/api/www/search/searchMusicBykeyWord",
-                params={"key": term, "pn": "1", "rn": "10", "httpsStatus": "1"},
-                timeout=min(request_timeout(), 8),
-            )
-            resp.raise_for_status()
-            songs = (((resp.json() or {}).get("data") or {}).get("list") or [])
-            append_job_log(f"[INFO] kuwo result count={len(songs)} for term={term}")
-        except Exception as exc:
-            errors.append(str(exc))
-            append_job_log(f"[WARN] kuwo query failed for term={term} :: {exc}")
-            continue
-
-        for song in songs:
-            song_name = str(song.get("name") or "").strip()
-            artists = [str(song.get("artist") or "").strip()]
-            score = _score_song_candidate(title_cf, artist_cf, part_cfs, preferred_title_cf, preferred_artist_cf, song_name, artists, boost_exact_combo=True)
-            if best is None or score > best[0]:
-                best = (score, song, term)
-        if best and best[0] >= 100:
-            append_job_log(f"[INFO] kuwo early match score={best[0]} term={best[2]}")
+    for match in candidate_result.get("matches") or []:
+        item = match.get("item") or {}
+        score = int(match.get("score") or 0)
+        if best is None or score > best[0]:
+            best = (score, item, match.get("term") or "")
+        if score >= 100:
             break
 
     if not best or best[0] < 55:
-        return {"ok": False, "error": "kuwo-no-confident-match", "context": context, "errors": errors}
+        return {"ok": False, "error": "kuwo-no-confident-match", "context": context}
 
-    rid = str(best[1].get("rid") or best[1].get("musicrid") or "")
-    if rid.startswith("MUSIC_"):
-        rid = rid.split("MUSIC_", 1)[1]
+    rid = _normalize_kuwo_music_id(best[1])
     if not rid:
         return {"ok": False, "error": "kuwo-missing-rid", "context": context}
 
-    try:
-        resp = session.get(
-            "https://www.kuwo.cn/openapi/v1/www/lyric/getlyric",
-            params={"musicId": rid, "httpsStatus": "1"},
-            timeout=min(request_timeout(), 8),
-        )
-        resp.raise_for_status()
-        data = resp.json() or {}
-        lyric = str(((data.get("data") or {}).get("lrclist") or "")).strip()
-        if not lyric and isinstance((data.get("data") or {}).get("lrclist"), list):
-            rows = []
-            for item in (data.get("data") or {}).get("lrclist") or []:
-                line = str(item.get("lineLyric") or "").strip()
-                if not line:
-                    continue
-                time_str = str(item.get("time") or item.get("lineTime") or "").strip()
-                if time_str:
-                    rows.append(f"[{time_str}]{line}")
-                else:
-                    rows.append(line)
-            lyric = "\n".join(rows).strip()
-    except Exception as exc:
-        return {"ok": False, "error": f"kuwo-lyric-fetch-failed: {exc}", "context": context}
-
+    append_job_log(f"[INFO] kuwo best match score={best[0]} term={best[2]} rid={rid}")
+    lyric = fetch_kuwo_candidate_lyric(best[1])
     if not lyric:
         return {"ok": False, "error": "kuwo-empty-lyric", "context": context}
     return {"ok": True, "lyrics": lyric, "source": "kuwo", "context": context, "candidate": best[1]}
