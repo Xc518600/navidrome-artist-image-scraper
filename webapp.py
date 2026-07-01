@@ -3328,12 +3328,28 @@ def api_config():
         return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
 
 
+def _recover_mojibake_path(raw_value: str) -> str:
+    value = str(raw_value or "").strip()
+    if not value:
+        return ""
+    decoded = unquote(value)
+    if Path(decoded).exists():
+        return decoded
+    try:
+        repaired = decoded.encode("latin-1").decode("utf-8")
+        if Path(repaired).exists():
+            return repaired
+    except Exception:
+        pass
+    return decoded
+
+
 @app.route("/api/song-cover", methods=["GET", "HEAD"])
 def api_song_cover():
     audio_path_raw = str(request.args.get("path") or "").strip()
     if not audio_path_raw:
         abort(400)
-    audio_path = Path(unquote(audio_path_raw))
+    audio_path = Path(_recover_mojibake_path(audio_path_raw))
     if not audio_path.exists() or not audio_path.is_file():
         abort(404)
 
