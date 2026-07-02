@@ -621,7 +621,7 @@ h3 {
 
 .settings-detail-inline-meta {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .settings-detail-subtitle {
@@ -629,38 +629,15 @@ h3 {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: -1px;
+  margin-top: -2px;
+  margin-bottom: -1px;
 }
 
 .settings-detail-artist {
   color: #f3ecff;
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.35;
-}
-
-.settings-detail-path-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
-.settings-inline-label {
-  color: rgba(184, 169, 214, 0.72);
-  font-size: 13px;
-  font-weight: 700;
-  flex: 0 0 auto;
-}
-
-.settings-inline-path {
-  color: #f8f4ff;
-  line-height: 1.5;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
 }
 
 .settings-detail-status-row {
@@ -722,16 +699,32 @@ h3 {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
-  background: linear-gradient(135deg, rgba(34,22,58,0.9), rgba(15,11,34,0.92));
-  border-color: rgba(255,255,255,0.12);
-  color: #e9ddff;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 0 14px rgba(122,92,255,0.1);
+  color: #fdfcff;
 }
 
-.settings-back-home-button:hover,
+.settings-back-home-button {
+  background: linear-gradient(135deg, rgba(114, 58, 190, 0.97), rgba(77, 41, 158, 0.95));
+  border-color: rgba(203, 160, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(203, 160, 255, 0.12), 0 10px 24px rgba(105, 66, 210, 0.24);
+}
+
+.settings-lyrics-search-button {
+  flex: 0 0 120px;
+  min-width: 120px;
+  align-self: stretch;
+  background: linear-gradient(135deg, rgba(46, 136, 230, 0.97), rgba(61, 96, 222, 0.95));
+  border-color: rgba(130, 214, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(130, 214, 255, 0.12), 0 10px 24px rgba(60, 112, 224, 0.24);
+}
+
+.settings-back-home-button:hover {
+  border-color: rgba(228, 190, 255, 0.7);
+  box-shadow: 0 0 0 1px rgba(228, 190, 255, 0.2), 0 14px 30px rgba(132, 86, 236, 0.3);
+}
+
 .settings-lyrics-search-button:hover {
-  border-color: rgba(39,240,255,0.34);
-  box-shadow: 0 0 0 1px rgba(39,240,255,0.12), 0 0 18px rgba(39,240,255,0.14);
+  border-color: rgba(144, 238, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(144, 238, 255, 0.18), 0 14px 30px rgba(72, 146, 255, 0.28);
 }
 
 .settings-lyrics-search-bar {

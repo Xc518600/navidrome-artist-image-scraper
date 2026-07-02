@@ -70,10 +70,6 @@
               <span class="settings-detail-artist" id="settings-detail-artist">{{ data.selected_song.artist if data.selected_song else '点开列表选择歌曲' }}</span>
             </p>
             <div class="settings-detail-inline-meta">
-              <div class="settings-detail-path-row">
-                <span class="settings-inline-label">路径：</span>
-                <span class="path-block settings-inline-path" data-field="folder_path" title="{{ data.selected_song.folder_path if data.selected_song else '-' }}">{{ data.selected_song.folder_path if data.selected_song else '-' }}</span>
-              </div>
               <div class="settings-detail-status-row">
                 <span class="settings-status-chip settings-status-chip-cover">内嵌封面：<span data-bool="has_embedded_cover">{{ '有' if data.selected_song and data.selected_song.has_embedded_cover else '无' }}</span></span>
                 <span class="settings-status-chip settings-status-chip-lyrics">内嵌歌词：<span data-bool="has_embedded_lyrics">{{ '有' if data.selected_song and data.selected_song.has_embedded_lyrics else '无' }}</span></span>
@@ -402,9 +398,6 @@ function selectSettingsSong(button) {
     const key = node.getAttribute('data-field');
     const value = song[key] || '-';
     node.textContent = value;
-    if (key === 'folder_path') {
-      node.setAttribute('title', value);
-    }
   });
   document.querySelectorAll('[data-bool]').forEach(node => {
     const key = node.getAttribute('data-bool');
