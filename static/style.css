@@ -608,8 +608,8 @@ h3 {
 
 .settings-detail-header {
   align-items: center;
-  gap: 16px;
-  padding: 18px;
+  gap: 14px;
+  padding: 16px 18px;
 }
 
 .settings-detail-cover-wrap {
@@ -620,7 +620,95 @@ h3 {
   min-width: 0;
   flex: 1;
   display: grid;
-  gap: 10px;
+  gap: 8px;
+}
+
+.settings-detail-eyebrow {
+  margin-bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 159, 233, 0.72);
+}
+
+.settings-detail-inline-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-detail-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-detail-artist {
+  color: #f3ecff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.settings-detail-album {
+  color: rgba(184, 169, 214, 0.78);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.settings-detail-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.settings-inline-label {
+  color: rgba(184, 169, 214, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.settings-inline-path {
+  color: #f8f4ff;
+  line-height: 1.5;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-detail-status-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e8e1ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.settings-status-chip-cover {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.26);
+  color: #d6ebff;
+}
+
+.settings-status-chip-lyrics {
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.28);
+  color: #f0e2ff;
 }
 
 .settings-badges {
@@ -636,13 +724,14 @@ h3 {
 
 .settings-lyrics-search-bar {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+  margin-top: 2px;
 }
 
 .settings-lyrics-search-bar .btn {
-  min-height: 44px;
+  min-height: 42px;
 }
 
 .settings-lyrics-search-input {
@@ -727,6 +816,11 @@ h3 {
   width: 96px;
   min-width: 96px;
   aspect-ratio: 1 / 1;
+}
+
+.settings-cover-frame-tighter {
+  width: 82px;
+  min-width: 82px;
 }
 
 .settings-cover-image {

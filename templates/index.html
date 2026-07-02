@@ -82,7 +82,7 @@
       <section class="card settings-topbar-card settings-detail-header-card">
         <div class="settings-topbar settings-detail-header">
           <div class="settings-detail-cover-wrap">
-            <div class="settings-cover-frame settings-cover-frame-compact">
+            <div class="settings-cover-frame settings-cover-frame-compact settings-cover-frame-tighter">
               {% if data.selected_song %}
               <img id="settings-cover-image" class="settings-cover-image" src="{{ data.selected_song.cover_url }}" alt="cover" onerror="handleSettingsCoverError(this)">
               {% endif %}
@@ -90,9 +90,22 @@
             </div>
           </div>
           <div class="settings-detail-main">
-            <p class="eyebrow">歌词搜索</p>
+            <p class="eyebrow settings-detail-eyebrow">歌词搜索</p>
             <h2 id="settings-detail-title">{{ data.selected_song.title if data.selected_song else '歌曲详情' }}</h2>
-            <p class="hint" id="settings-detail-subtitle">{{ data.selected_song.artist if data.selected_song else '右侧显示所选歌曲的完整信息' }}</p>
+            <p class="hint settings-detail-subtitle" id="settings-detail-subtitle">
+              <span class="settings-detail-artist" id="settings-detail-artist">{{ data.selected_song.artist if data.selected_song else '点开列表选择歌曲' }}</span>
+              <span class="settings-detail-album" id="settings-detail-album">{% if data.selected_song and data.selected_song.album %}· {{ data.selected_song.album }}{% endif %}</span>
+            </p>
+            <div class="settings-detail-inline-meta">
+              <div class="settings-detail-path-row">
+                <span class="settings-inline-label">路径：</span>
+                <span class="path-block settings-inline-path" data-field="folder_path" title="{{ data.selected_song.folder_path if data.selected_song else '-' }}">{{ data.selected_song.folder_path if data.selected_song else '-' }}</span>
+              </div>
+              <div class="settings-detail-status-row">
+                <span class="settings-status-chip settings-status-chip-cover">内嵌封面：<span data-bool="has_embedded_cover">{{ '有' if data.selected_song and data.selected_song.has_embedded_cover else '无' }}</span></span>
+                <span class="settings-status-chip settings-status-chip-lyrics">内嵌歌词：<span data-bool="has_embedded_lyrics">{{ '有' if data.selected_song and data.selected_song.has_embedded_lyrics else '无' }}</span></span>
+              </div>
+            </div>
             <div class="settings-lyrics-search-bar">
               <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词">
               <button type="button" class="btn btn-primary settings-lyrics-search-button" onclick="return searchSettingsLyrics()">搜索歌词</button>
@@ -108,61 +121,6 @@
         </div>
         <p class="hint" id="settings-lyrics-candidate-title"></p>
         <ul class="simple-list compact-list" id="settings-lyrics-candidate-list"></ul>
-        </div>
-      </section>
-
-      <section class="settings-panel-grid settings-panel-grid-compact">
-        <div class="card settings-panel-card">
-          <div class="settings-panel-title-row">
-            <h3>基础信息</h3>
-            <span class="settings-badge">歌曲</span>
-          </div>
-          <ul class="simple-list compact-list config-list settings-list-block" id="settings-song-basic">
-            <li><strong>标题：</strong> <span data-field="title">{{ data.selected_song.title if data.selected_song else '-' }}</span></li>
-            <li><strong>艺术家：</strong> <span data-field="artist">{{ data.selected_song.artist if data.selected_song else '-' }}</span></li>
-            <li><strong>专辑：</strong> <span data-field="album">{{ data.selected_song.album if data.selected_song else '-' }}</span></li>
-            <li><strong>文件名：</strong> <span data-field="filename">{{ data.selected_song.filename if data.selected_song else '-' }}</span></li>
-          </ul>
-        </div>
-
-        <div class="card settings-panel-card">
-          <div class="settings-panel-title-row">
-            <h3>资源状态</h3>
-            <span class="settings-badge settings-badge-ghost">状态</span>
-          </div>
-          <ul class="simple-list compact-list config-list settings-list-block" id="settings-song-status">
-            <li><strong>内嵌封面：</strong> <span data-bool="has_embedded_cover">{{ '有' if data.selected_song and data.selected_song.has_embedded_cover else '无' }}</span></li>
-            <li><strong>内嵌歌词：</strong> <span data-bool="has_embedded_lyrics">{{ '有' if data.selected_song and data.selected_song.has_embedded_lyrics else '无' }}</span></li>
-            <li><strong>外置歌词：</strong> <span data-bool="has_sidecar_lyrics">{{ '有' if data.selected_song and data.selected_song.has_sidecar_lyrics else '无' }}</span></li>
-            <li><strong>格式：</strong> <span data-field="suffix">{{ data.selected_song.suffix if data.selected_song else '-' }}</span></li>
-          </ul>
-        </div>
-
-        <div class="card settings-panel-card settings-panel-card-wide">
-          <div class="settings-panel-title-row">
-            <h3>路径信息</h3>
-            <span class="settings-badge settings-badge-secondary">文件</span>
-          </div>
-          <div class="settings-path-compact" id="settings-song-paths">
-            <div class="settings-path-item">
-              <span class="settings-path-label">完整路径</span>
-              <span class="path-block settings-path-value" data-field="source_file">{{ data.selected_song.source_file if data.selected_song else '-' }}</span>
-            </div>
-            <div class="settings-path-item">
-              <span class="settings-path-label">所在目录</span>
-              <span class="path-block settings-path-value" data-field="folder_path">{{ data.selected_song.folder_path if data.selected_song else '-' }}</span>
-            </div>
-            <div class="settings-path-inline-grid">
-              <div class="settings-path-item settings-path-item-inline">
-                <span class="settings-path-label">音乐根目录</span>
-                <span class="path-block settings-path-value">{{ data.resolved_paths.music_root }}</span>
-              </div>
-              <div class="settings-path-item settings-path-item-inline">
-                <span class="settings-path-label">配置文件</span>
-                <span class="path-block settings-path-value">{{ data.resolved_paths.config_path }}</span>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -421,6 +379,13 @@ function syncSettingsMobileSummary(song) {
   if (subtitle) subtitle.textContent = song?.artist || '点开列表选择歌曲';
 }
 
+function updateSettingsDetailSubtitle(song) {
+  const artist = document.getElementById('settings-detail-artist');
+  const album = document.getElementById('settings-detail-album');
+  if (artist) artist.textContent = song?.artist || '点开列表选择歌曲';
+  if (album) album.textContent = song?.album ? `· ${song.album}` : '';
+}
+
 function selectSettingsSong(button) {
   if (!button) return;
   document.querySelectorAll('.settings-song-item').forEach(node => node.classList.remove('active'));
@@ -438,9 +403,8 @@ function selectSettingsSong(button) {
     setSettingsSongListExpanded(false);
   }
   const title = document.getElementById('settings-detail-title');
-  const subtitle = document.getElementById('settings-detail-subtitle');
   if (title) title.textContent = song.title || '歌曲详情';
-  if (subtitle) subtitle.textContent = [song.artist || '', song.album || ''].filter(Boolean).join(' · ') || '右侧显示所选歌曲的完整信息';
+  updateSettingsDetailSubtitle(song);
   const coverImg = document.getElementById('settings-cover-image');
   const coverPlaceholder = document.getElementById('settings-cover-placeholder');
   if (coverImg) {
@@ -455,7 +419,11 @@ function selectSettingsSong(button) {
   }
   document.querySelectorAll('[data-field]').forEach(node => {
     const key = node.getAttribute('data-field');
-    node.textContent = song[key] || '-';
+    const value = song[key] || '-';
+    node.textContent = value;
+    if (key === 'folder_path') {
+      node.setAttribute('title', value);
+    }
   });
   document.querySelectorAll('[data-bool]').forEach(node => {
     const key = node.getAttribute('data-bool');
