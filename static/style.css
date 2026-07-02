@@ -603,7 +603,7 @@ h3 {
 }
 
 .settings-detail-header {
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   padding: 16px 18px;
 }
@@ -617,6 +617,15 @@ h3 {
   flex: 1;
   display: grid;
   gap: 6px;
+  padding-top: 6px;
+}
+
+.settings-detail-main h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.14;
+  letter-spacing: 0.02em;
+  word-break: break-word;
 }
 
 .settings-detail-inline-meta {
@@ -698,15 +707,18 @@ h3 {
   padding: 11px 16px;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1;
   color: #f7f2ff;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .settings-back-home-button {
   background: linear-gradient(135deg, rgba(72, 36, 128, 0.52), rgba(102, 57, 168, 0.44));
-  border-color: rgba(200, 162, 255, 0.34);
+  border-color: rgba(255, 79, 216, 0.58);
   box-shadow: 0 0 0 1px rgba(200, 162, 255, 0.10), 0 8px 20px rgba(66, 34, 116, 0.18), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
@@ -715,18 +727,18 @@ h3 {
   min-width: 120px;
   align-self: stretch;
   background: linear-gradient(135deg, rgba(52, 88, 168, 0.5), rgba(69, 118, 196, 0.42));
-  border-color: rgba(132, 214, 255, 0.32);
+  border-color: rgba(39, 240, 255, 0.56);
   box-shadow: 0 0 0 1px rgba(132, 214, 255, 0.10), 0 8px 20px rgba(40, 72, 148, 0.17), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .settings-back-home-button:hover {
-  border-color: rgba(224, 194, 255, 0.46);
+  border-color: rgba(255, 79, 216, 0.82);
   box-shadow: 0 0 0 1px rgba(224, 194, 255, 0.16), 0 10px 24px rgba(88, 49, 150, 0.24), inset 0 1px 0 rgba(255,255,255,0.09);
   transform: translateY(-1px);
 }
 
 .settings-lyrics-search-button:hover {
-  border-color: rgba(166, 230, 255, 0.42);
+  border-color: rgba(39, 240, 255, 0.8);
   box-shadow: 0 0 0 1px rgba(166, 230, 255, 0.14), 0 10px 24px rgba(50, 92, 176, 0.22), inset 0 1px 0 rgba(255,255,255,0.09);
   transform: translateY(-1px);
 }
@@ -986,11 +998,13 @@ h3 {
   .settings-detail-main {
     width: 100%;
     gap: 8px;
+    padding-top: 2px;
   }
 
   .settings-detail-main h2 {
-    font-size: 18px;
-    line-height: 1.35;
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.3;
     word-break: break-word;
   }
 
