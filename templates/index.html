@@ -364,7 +364,10 @@ function syncSettingsSelectionFromSearch(keyword) {
   const matchedButton = matchedButtons[0].button;
   if (matchedButton.classList.contains('active')) return;
   selectSettingsSong(matchedButton);
-  matchedButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const isMobileView = window.matchMedia('(max-width: 720px)').matches;
+  if (!isMobileView) {
+    matchedButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }
 
 function selectSettingsSong(button) {
