@@ -33,20 +33,6 @@
   {% if page == 'settings' %}
   <section class="settings-shell">
     <aside class="settings-sidebar card settings-song-sidebar">
-      <div class="settings-sidebar-head">
-        <p class="eyebrow">本地歌曲</p>
-        <h2>本地歌曲</h2>
-        <p class="hint">左侧显示本地歌曲文件，点一首歌，右侧查看这首歌的详情、专辑和文件信息。</p>
-      </div>
-
-      <div class="settings-action-stack">
-        <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
-        <button type="button" class="btn settings-mobile-toggle" id="settings-mobile-toggle" onclick="toggleSettingsSongList()">展开歌曲列表</button>
-      </div>
-
-      <div class="settings-search-box" id="settings-search-box">
-        <input id="settings-song-search" class="settings-search-input" type="text" placeholder="搜索歌曲 / 艺术家 / 专辑" oninput="filterSettingsSongs(this.value)">
-      </div>
 
       <div class="settings-song-list" id="settings-song-list">
         {% for song in data.songs %}
@@ -68,17 +54,6 @@
     </aside>
 
       <div class="settings-main">
-      <section class="card settings-topbar-card settings-detail-header-card settings-mobile-summary-card">
-        <div class="settings-mobile-summary-row">
-          <div class="settings-mobile-summary-text">
-            <p class="eyebrow">当前歌曲</p>
-            <strong id="settings-mobile-current-title">{{ data.selected_song.title if data.selected_song else '未选择歌曲' }}</strong>
-            <span id="settings-mobile-current-subtitle">{{ data.selected_song.artist if data.selected_song else '点开列表选择歌曲' }}</span>
-          </div>
-          <button type="button" class="btn btn-primary settings-mobile-summary-button" onclick="toggleSettingsSongList()">选择歌曲</button>
-        </div>
-      </section>
-
       <section class="card settings-topbar-card settings-detail-header-card">
         <div class="settings-topbar settings-detail-header">
           <div class="settings-detail-cover-wrap">
@@ -106,8 +81,11 @@
                 <span class="settings-status-chip settings-status-chip-lyrics">内嵌歌词：<span data-bool="has_embedded_lyrics">{{ '有' if data.selected_song and data.selected_song.has_embedded_lyrics else '无' }}</span></span>
               </div>
             </div>
+            <div class="settings-detail-actions">
+              <a class="btn btn-primary settings-back-home-button" href="/?page=music-library">返回主页</a>
+            </div>
             <div class="settings-lyrics-search-bar">
-              <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词">
+              <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词" oninput="syncSettingsSelectionFromSearch(this.value)">
               <button type="button" class="btn btn-primary settings-lyrics-search-button" onclick="return searchSettingsLyrics()">搜索歌词</button>
             </div>
           </div>
@@ -356,34 +334,45 @@ function showJobBanner(message, tone = 'info') {
   node.className = tone === 'error' ? 'error' : 'hint';
 }
 
-function setSettingsSongListExpanded(expanded) {
-  const sidebar = document.querySelector('.settings-song-sidebar');
-  const toggle = document.getElementById('settings-mobile-toggle');
-  if (!sidebar) return;
-  sidebar.classList.toggle('mobile-expanded', !!expanded);
-  if (toggle) toggle.textContent = expanded ? '收起歌曲列表' : '展开歌曲列表';
-}
-
-function toggleSettingsSongList(forceExpanded = null) {
-  const sidebar = document.querySelector('.settings-song-sidebar');
-  if (!sidebar) return false;
-  const next = forceExpanded === null ? !sidebar.classList.contains('mobile-expanded') : !!forceExpanded;
-  setSettingsSongListExpanded(next);
-  return false;
-}
-
-function syncSettingsMobileSummary(song) {
-  const title = document.getElementById('settings-mobile-current-title');
-  const subtitle = document.getElementById('settings-mobile-current-subtitle');
-  if (title) title.textContent = song?.title || '未选择歌曲';
-  if (subtitle) subtitle.textContent = song?.artist || '点开列表选择歌曲';
-}
-
 function updateSettingsDetailSubtitle(song) {
   const artist = document.getElementById('settings-detail-artist');
   const album = document.getElementById('settings-detail-album');
   if (artist) artist.textContent = song?.artist || '点开列表选择歌曲';
   if (album) album.textContent = song?.album ? `· ${song.album}` : '';
+}
+
+function normalizeSettingsSongKeyword(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function syncSettingsSelectionFromSearch(keyword) {
+  const normalizedKeyword = normalizeSettingsSongKeyword(keyword);
+  if (!normalizedKeyword) return;
+
+  const songButtons = Array.from(document.querySelectorAll('.settings-song-item')).map((button) => {
+    try {
+      const song = JSON.parse(button.dataset.song || '{}');
+      return {
+        button,
+        title: normalizeSettingsSongKeyword(song?.title),
+      };
+    } catch (e) {
+      return null;
+    }
+  }).filter(Boolean);
+
+  const exactMatches = songButtons.filter((item) => item.title === normalizedKeyword);
+  let matchedButtons = exactMatches;
+
+  if (matchedButtons.length === 0) {
+    matchedButtons = songButtons.filter((item) => item.title.includes(normalizedKeyword)).sort((a, b) => a.title.length - b.title.length);
+  }
+
+  if (matchedButtons.length !== 1) return;
+  const matchedButton = matchedButtons[0].button;
+  if (matchedButton.classList.contains('active')) return;
+  selectSettingsSong(matchedButton);
+  matchedButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 function selectSettingsSong(button) {
@@ -398,10 +387,6 @@ function selectSettingsSong(button) {
     return;
   }
   window.__selectedSettingsSong = song;
-  syncSettingsMobileSummary(song);
-  if (window.innerWidth <= 720) {
-    setSettingsSongListExpanded(false);
-  }
   const title = document.getElementById('settings-detail-title');
   if (title) title.textContent = song.title || '歌曲详情';
   updateSettingsDetailSubtitle(song);
@@ -826,10 +811,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (activeSongButton) {
     try {
       window.__selectedSettingsSong = JSON.parse(activeSongButton.dataset.song || '{}');
-      syncSettingsMobileSummary(window.__selectedSettingsSong);
     } catch (e) {}
   }
-  setSettingsSongListExpanded(false);
 });
 
 

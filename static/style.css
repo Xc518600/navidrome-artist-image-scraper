@@ -428,8 +428,8 @@ h3 {
 
 .settings-shell {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 48px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 42px;
   padding: 0 28px 20px;
   align-items: start;
   min-height: 100vh;
@@ -444,7 +444,7 @@ h3 {
   position: sticky;
   top: 0;
   align-self: start;
-  padding: 18px;
+  padding: 16px;
   border-radius: 18px;
   margin-top: 0;
 }
@@ -462,7 +462,7 @@ h3 {
 .settings-action-stack {
   display: grid;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 8px;
 }
 
 .settings-action-stack .btn {
@@ -485,7 +485,7 @@ h3 {
 }
 
 .settings-song-list {
-  margin-top: 20px;
+  margin-top: 0;
   display: grid;
   gap: 10px;
   overflow-y: auto;
@@ -516,10 +516,6 @@ h3 {
   background: linear-gradient(180deg, rgba(39,240,255,0.95), rgba(122,92,255,0.92));
 }
 
-.settings-search-box {
-  margin-top: 18px;
-}
-
 .settings-search-input {
   width: 100%;
   border-radius: 14px;
@@ -542,11 +538,11 @@ h3 {
   background: rgba(255,255,255,0.04);
   color: var(--text);
   border-radius: 16px;
-  padding: 14px 16px;
+  padding: 13px 14px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   transition: .18s ease;
 }
 
@@ -720,6 +716,29 @@ h3 {
 
 .settings-badges-inline {
   justify-content: flex-start;
+}
+
+.settings-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.settings-back-home-button {
+  min-height: 42px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  background: linear-gradient(135deg, rgba(34,22,58,0.9), rgba(15,11,34,0.92));
+  border-color: rgba(255,255,255,0.12);
+  color: #e9ddff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 0 14px rgba(122,92,255,0.1);
+}
+
+.settings-back-home-button:hover {
+  border-color: rgba(39,240,255,0.34);
+  box-shadow: 0 0 0 1px rgba(39,240,255,0.12), 0 0 18px rgba(39,240,255,0.14);
 }
 
 .settings-lyrics-search-bar {
@@ -946,77 +965,12 @@ h3 {
     gap: 12px;
   }
 
-  .settings-mobile-toggle,
-  .settings-mobile-summary-card {
-    display: block;
-  }
-
-  .settings-mobile-summary-card {
-    padding: 14px 16px;
-  }
-
-  .settings-mobile-summary-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .settings-mobile-summary-text {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .settings-mobile-summary-text strong,
-  .settings-mobile-summary-text span {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .settings-mobile-summary-button {
-    flex: 0 0 auto;
-    min-width: 108px;
-    white-space: nowrap;
-  }
-
   .settings-sidebar {
     padding: 14px;
   }
 
   .settings-song-sidebar {
     overflow: hidden;
-  }
-
-  .settings-song-sidebar .settings-sidebar-head,
-  .settings-song-sidebar .settings-search-box,
-  .settings-song-sidebar .settings-song-list {
-    display: none;
-  }
-
-  .settings-song-sidebar.mobile-expanded .settings-sidebar-head,
-  .settings-song-sidebar.mobile-expanded .settings-search-box,
-  .settings-song-sidebar.mobile-expanded .settings-song-list {
-    display: grid;
-  }
-
-  .settings-song-sidebar.mobile-expanded .settings-song-list {
-    display: grid;
-    max-height: 52vh;
-    padding-right: 4px;
-  }
-
-  .settings-action-stack {
-    grid-template-columns: 1fr;
-    margin-top: 0;
-  }
-
-  .settings-action-stack .btn,
-  .settings-mobile-toggle {
-    width: 100%;
   }
 
   .settings-main {
@@ -1052,6 +1006,17 @@ h3 {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+  }
+
+  .settings-detail-actions {
+    justify-content: stretch;
+  }
+
+  .settings-back-home-button,
+  .settings-lyrics-search-button,
+  .settings-lyrics-search-bar .btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .settings-lyrics-search-input {
