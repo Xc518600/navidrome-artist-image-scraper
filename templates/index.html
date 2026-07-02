@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
 </head>
 <body>
-  {% if page != 'settings' %}
+  {% set current_view = request.args.get('view', 'home') %}
+  {% if page == 'music-library' and current_view == 'home' %}
   <header class="topbar">
     <div>
       <p class="eyebrow">Navidrome 媒体工具台</p>
@@ -150,7 +151,7 @@
   </section>
 
   {% else %}
-  {% set library_view = request.args.get('view', 'home') %}
+  {% set library_view = current_view %}
 
   {% if library_view == 'home' %}
   {% endif %}
@@ -173,7 +174,6 @@
   </section>
   <section class="card" id="missing-lyrics">
       <h2>刮削失败</h2>
-      <p class="hint">检测到缺歌词时会先自动刮削一次；只有自动刮削失败的歌曲才会显示在这里，而且同一首歌不会反复自动刮削。</p>
       <div id="lyrics-candidate-panel" class="card" style="display:none; margin-bottom:12px;">
         <h3>候选歌词手动选择</h3>
         <p class="hint" id="lyrics-candidate-title"></p>

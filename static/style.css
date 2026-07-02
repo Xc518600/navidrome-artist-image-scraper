@@ -262,7 +262,7 @@ h3 {
 }
 
 .section-head-card {
-  margin: 28px 40px 0;
+  margin: 24px 40px 0;
   padding: 20px 24px;
 }
 
@@ -1274,6 +1274,10 @@ summary {
   .topbar, .artist-row, .export-row, .roadmap-item {
     grid-template-columns: 1fr;
     display: block;
+  }
+
+  .section-head-card {
+    margin: 16px 12px 0;
   }
 
   .topbar {
