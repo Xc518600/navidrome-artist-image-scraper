@@ -213,6 +213,8 @@ def collect_song_detail_rows(music_root: Path, extensions: set[str], skip_dirs: 
             title = str(tags.get("title") or audio_path.stem).strip()
             artist = str(tags.get("artist") or tags.get("album_artist") or tags.get("albumartist") or current.name).strip()
             album = str(tags.get("album") or current.name).strip()
+            if artist == current.name and current.name in {"自己下载"}:
+                artist = ""
             rows.append({
                 "id": str(audio_path.resolve()),
                 "title": title,

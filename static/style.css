@@ -699,32 +699,36 @@ h3 {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
-  color: #fdfcff;
+  color: #f7f2ff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .settings-back-home-button {
-  background: linear-gradient(135deg, rgba(114, 58, 190, 0.97), rgba(77, 41, 158, 0.95));
-  border-color: rgba(203, 160, 255, 0.42);
-  box-shadow: 0 0 0 1px rgba(203, 160, 255, 0.12), 0 10px 24px rgba(105, 66, 210, 0.24);
+  background: linear-gradient(135deg, rgba(72, 36, 128, 0.52), rgba(102, 57, 168, 0.44));
+  border-color: rgba(200, 162, 255, 0.34);
+  box-shadow: 0 0 0 1px rgba(200, 162, 255, 0.10), 0 8px 20px rgba(66, 34, 116, 0.18), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .settings-lyrics-search-button {
   flex: 0 0 120px;
   min-width: 120px;
   align-self: stretch;
-  background: linear-gradient(135deg, rgba(46, 136, 230, 0.97), rgba(61, 96, 222, 0.95));
-  border-color: rgba(130, 214, 255, 0.42);
-  box-shadow: 0 0 0 1px rgba(130, 214, 255, 0.12), 0 10px 24px rgba(60, 112, 224, 0.24);
+  background: linear-gradient(135deg, rgba(52, 88, 168, 0.5), rgba(69, 118, 196, 0.42));
+  border-color: rgba(132, 214, 255, 0.32);
+  box-shadow: 0 0 0 1px rgba(132, 214, 255, 0.10), 0 8px 20px rgba(40, 72, 148, 0.17), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .settings-back-home-button:hover {
-  border-color: rgba(228, 190, 255, 0.7);
-  box-shadow: 0 0 0 1px rgba(228, 190, 255, 0.2), 0 14px 30px rgba(132, 86, 236, 0.3);
+  border-color: rgba(224, 194, 255, 0.46);
+  box-shadow: 0 0 0 1px rgba(224, 194, 255, 0.16), 0 10px 24px rgba(88, 49, 150, 0.24), inset 0 1px 0 rgba(255,255,255,0.09);
+  transform: translateY(-1px);
 }
 
 .settings-lyrics-search-button:hover {
-  border-color: rgba(144, 238, 255, 0.65);
-  box-shadow: 0 0 0 1px rgba(144, 238, 255, 0.18), 0 14px 30px rgba(72, 146, 255, 0.28);
+  border-color: rgba(166, 230, 255, 0.42);
+  box-shadow: 0 0 0 1px rgba(166, 230, 255, 0.14), 0 10px 24px rgba(50, 92, 176, 0.22), inset 0 1px 0 rgba(255,255,255,0.09);
+  transform: translateY(-1px);
 }
 
 .settings-lyrics-search-bar {
