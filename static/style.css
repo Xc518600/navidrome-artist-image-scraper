@@ -430,7 +430,7 @@ h3 {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 42px;
-  padding: 0 28px 20px;
+  padding: 24px 28px 20px;
   align-items: start;
   min-height: 100vh;
 }
@@ -616,14 +616,7 @@ h3 {
   min-width: 0;
   flex: 1;
   display: grid;
-  gap: 8px;
-}
-
-.settings-detail-eyebrow {
-  margin-bottom: 2px;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: rgba(255, 159, 233, 0.72);
+  gap: 6px;
 }
 
 .settings-detail-inline-meta {
@@ -634,20 +627,16 @@ h3 {
 .settings-detail-subtitle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  margin-top: -1px;
 }
 
 .settings-detail-artist {
   color: #f3ecff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-}
-
-.settings-detail-album {
-  color: rgba(184, 169, 214, 0.78);
-  font-size: 13px;
-  font-weight: 500;
+  line-height: 1.35;
 }
 
 .settings-detail-path-row {
@@ -721,11 +710,14 @@ h3 {
 .settings-detail-actions {
   display: flex;
   justify-content: flex-end;
+  width: 100%;
   margin-top: 2px;
 }
 
-.settings-back-home-button {
+.settings-back-home-button,
+.settings-lyrics-search-button {
   min-height: 42px;
+  width: 120px;
   padding: 11px 16px;
   font-size: 14px;
   font-weight: 600;
@@ -736,15 +728,17 @@ h3 {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 0 14px rgba(122,92,255,0.1);
 }
 
-.settings-back-home-button:hover {
+.settings-back-home-button:hover,
+.settings-lyrics-search-button:hover {
   border-color: rgba(39,240,255,0.34);
   box-shadow: 0 0 0 1px rgba(39,240,255,0.12), 0 0 18px rgba(39,240,255,0.14);
 }
 
 .settings-lyrics-search-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
   flex-wrap: wrap;
   margin-top: 2px;
 }
@@ -759,8 +753,9 @@ h3 {
 }
 
 .settings-lyrics-search-button {
-  flex: 0 0 auto;
-  min-width: 108px;
+  flex: 0 0 120px;
+  min-width: 120px;
+  align-self: stretch;
 }
 
 .settings-badge {
@@ -961,7 +956,7 @@ h3 {
 
 @media (max-width: 720px) {
   .settings-shell {
-    padding: 0 12px 18px;
+    padding: 16px 12px 18px;
     gap: 12px;
   }
 
@@ -1003,6 +998,7 @@ h3 {
   }
 
   .settings-lyrics-search-bar {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;

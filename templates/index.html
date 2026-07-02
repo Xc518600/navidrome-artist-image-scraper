@@ -65,11 +65,9 @@
             </div>
           </div>
           <div class="settings-detail-main">
-            <p class="eyebrow settings-detail-eyebrow">歌词搜索</p>
             <h2 id="settings-detail-title">{{ data.selected_song.title if data.selected_song else '歌曲详情' }}</h2>
             <p class="hint settings-detail-subtitle" id="settings-detail-subtitle">
               <span class="settings-detail-artist" id="settings-detail-artist">{{ data.selected_song.artist if data.selected_song else '点开列表选择歌曲' }}</span>
-              <span class="settings-detail-album" id="settings-detail-album">{% if data.selected_song and data.selected_song.album %}· {{ data.selected_song.album }}{% endif %}</span>
             </p>
             <div class="settings-detail-inline-meta">
               <div class="settings-detail-path-row">
@@ -336,9 +334,7 @@ function showJobBanner(message, tone = 'info') {
 
 function updateSettingsDetailSubtitle(song) {
   const artist = document.getElementById('settings-detail-artist');
-  const album = document.getElementById('settings-detail-album');
   if (artist) artist.textContent = song?.artist || '点开列表选择歌曲';
-  if (album) album.textContent = song?.album ? `· ${song.album}` : '';
 }
 
 function normalizeSettingsSongKeyword(value) {
