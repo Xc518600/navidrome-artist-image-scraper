@@ -20,9 +20,9 @@ import requests
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for, Response
 from mutagen import File as MutagenFile
-from mutagen.flac import FLAC
-from mutagen.id3 import ID3, ID3NoHeaderError, USLT
-from mutagen.mp4 import MP4
+from mutagen.flac import FLAC, Picture
+from mutagen.id3 import APIC, ID3, ID3NoHeaderError, USLT
+from mutagen.mp4 import MP4, MP4Cover
 
 from scrape_artist_images import (
     AlbumFolder,
@@ -1669,6 +1669,72 @@ def has_album_art(audio_path: Path, folder_path: Optional[Path] = None, include_
     return bool(flags.get("has_embedded_cover"))
 
 
+def detect_image_mime(image_bytes: bytes, fallback: str = "image/jpeg") -> str:
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if image_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if image_bytes.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return fallback
+
+
+def write_cover_to_audio_file(audio_path: Path, image_bytes: bytes, mime_type: Optional[str] = None, overwrite: bool = False) -> tuple[bool, str]:
+    suffix = audio_path.suffix.lower()
+    normalized_mime = detect_image_mime(image_bytes, mime_type or "image/jpeg")
+
+    if suffix == '.mp3':
+        try:
+            try:
+                tags = ID3(str(audio_path))
+            except ID3NoHeaderError:
+                tags = ID3()
+            existing_apic_keys = [key for key in tags.keys() if str(key).startswith('APIC') and getattr(tags.get(key), 'data', None)]
+            if existing_apic_keys and not overwrite:
+                return False, 'embedded cover already exists'
+            for key in list(tags.keys()):
+                if str(key).startswith('APIC'):
+                    del tags[key]
+            tags.add(APIC(encoding=3, mime=normalized_mime, type=3, desc='Cover', data=image_bytes))
+            tags.save(str(audio_path))
+            return True, 'embedded mp3 cover written'
+        except Exception as exc:
+            return False, str(exc)
+
+    if suffix == '.flac':
+        try:
+            audio = FLAC(str(audio_path))
+            if getattr(audio, 'pictures', None) and not overwrite:
+                return False, 'embedded cover already exists'
+            audio.clear_pictures()
+            picture = Picture()
+            picture.type = 3
+            picture.mime = normalized_mime
+            picture.desc = 'Cover'
+            picture.data = image_bytes
+            audio.add_picture(picture)
+            audio.save()
+            return True, 'embedded flac cover written'
+        except Exception as exc:
+            return False, str(exc)
+
+    if suffix in {'.m4a', '.mp4', '.aac'}:
+        try:
+            audio = MP4(str(audio_path))
+            if audio.get('covr') and not overwrite:
+                return False, 'embedded cover already exists'
+            cover_format = MP4Cover.FORMAT_PNG if normalized_mime == 'image/png' else MP4Cover.FORMAT_JPEG
+            audio['covr'] = [MP4Cover(image_bytes, imageformat=cover_format)]
+            audio.save()
+            return True, 'embedded mp4 cover written'
+        except Exception as exc:
+            return False, str(exc)
+
+    return False, f'unsupported embedded cover format: {suffix}'
+
+
 def collect_missing_lyrics_rows(music_root: Path, extensions: set[str], skip_dirs: List[str], limit: int = 200, include_embedded: bool = True) -> dict:
     missing_rows = []
     total_missing = 0
@@ -1703,9 +1769,11 @@ def collect_missing_lyrics_rows(music_root: Path, extensions: set[str], skip_dir
 
 def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_dirs: List[str], limit: int = 200, include_embedded: bool = True) -> dict:
     missing_rows = []
+    skipped_mixed_rows = []
     missing_song_rows = []
     mtw_available_song_rows = []
     total_missing = 0
+    total_skipped_mixed = 0
     total_missing_songs = 0
     total_mtw_available_songs = 0
     mtw_cover_lookup = load_music_tag_web_cover_lookup()
@@ -1762,40 +1830,51 @@ def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_
                         "mixed_folder": mtw_is_mixed_folder,
                     })
 
-        total_missing += 1
-        if len(missing_rows) < limit:
-            source_audio = first_embedded_audio or matched[0]
-            mixed_folder = explicit_mixed_folder or mtw_is_mixed_folder or (len(matched) > 1 and embedded_cover_count not in (0, len(matched)))
-            if mixed_folder:
-                navidrome_cover_status = "mixed-folder-skip"
-            elif embedded_cover_count > 0:
+        source_audio = first_embedded_audio or matched[0]
+        mixed_folder = explicit_mixed_folder or mtw_is_mixed_folder or (len(matched) > 1 and embedded_cover_count not in (0, len(matched)))
+        if mixed_folder:
+            navidrome_cover_status = "mixed-folder-skip"
+            total_skipped_mixed += 1
+        else:
+            total_missing += 1
+
+        row_payload = {
+            "artist": current.name,
+            "source_file": str(source_audio),
+            "folder_path": str(current),
+            "target_file": str(target_file),
+            "has_embedded_cover": embedded_cover_count > 0,
+            "has_mtw_cover": mtw_has_cover,
+            "navidrome_cover_status": navidrome_cover_status,
+            "mtw_attachment_source": str((mtw_cover_item or {}).get("attachment_source") or ""),
+            "mtw_album_name": str((mtw_cover_item or {}).get("album_name") or ""),
+            "mixed_folder": mixed_folder,
+            "embedded_cover_count": embedded_cover_count,
+            "audio_file_count": len(matched),
+            "mtw_folder_candidate_count": int((mtw_cover_item or {}).get("mtw_folder_candidate_count") or 0),
+            "mtw_folder_album_id_count": int((mtw_cover_item or {}).get("mtw_folder_album_id_count") or 0),
+            "mtw_folder_album_name_count": int((mtw_cover_item or {}).get("mtw_folder_album_name_count") or 0),
+            "mtw_folder_album_names": list((mtw_cover_item or {}).get("mtw_folder_album_names") or []),
+        }
+
+        if mixed_folder:
+            if len(skipped_mixed_rows) < limit:
+                skipped_mixed_rows.append(row_payload)
+        elif len(missing_rows) < limit:
+            if embedded_cover_count > 0:
                 navidrome_cover_status = "embedded-available"
             elif mtw_has_cover:
                 navidrome_cover_status = "mtw-available"
             else:
                 navidrome_cover_status = "needs-online-scrape"
-            missing_rows.append({
-                "artist": current.name,
-                "source_file": str(source_audio),
-                "folder_path": str(current),
-                "target_file": str(target_file),
-                "has_embedded_cover": embedded_cover_count > 0,
-                "has_mtw_cover": mtw_has_cover,
-                "navidrome_cover_status": navidrome_cover_status,
-                "mtw_attachment_source": str((mtw_cover_item or {}).get("attachment_source") or ""),
-                "mtw_album_name": str((mtw_cover_item or {}).get("album_name") or ""),
-                "mixed_folder": mixed_folder,
-                "embedded_cover_count": embedded_cover_count,
-                "audio_file_count": len(matched),
-                "mtw_folder_candidate_count": int((mtw_cover_item or {}).get("mtw_folder_candidate_count") or 0),
-                "mtw_folder_album_id_count": int((mtw_cover_item or {}).get("mtw_folder_album_id_count") or 0),
-                "mtw_folder_album_name_count": int((mtw_cover_item or {}).get("mtw_folder_album_name_count") or 0),
-                "mtw_folder_album_names": list((mtw_cover_item or {}).get("mtw_folder_album_names") or []),
-            })
+            row_payload["navidrome_cover_status"] = navidrome_cover_status
+            missing_rows.append(row_payload)
 
     return {
         "missing_album_art_count": total_missing,
         "missing_album_art_rows": missing_rows,
+        "skipped_mixed_album_art_count": total_skipped_mixed,
+        "skipped_mixed_album_art_rows": skipped_mixed_rows,
         "missing_album_art_song_count": total_missing_songs,
         "missing_album_art_song_rows": missing_song_rows,
         "mtw_album_art_song_count": total_mtw_available_songs,
@@ -2124,6 +2203,51 @@ def write_online_lyrics(overwrite: bool = False, limit: int = 200, only_audio_pa
 
     append_job_log(
         f"[DONE] fetched={result['fetched']} embedded={result['written_embedded']} sidecar={result['written_sidecar']} skipped_existing={result['skipped_existing']} failed={result['failed']}"
+    )
+    result['ok'] = result['failed'] == 0
+    return result
+
+
+def write_online_song_cover(overwrite: bool = False, only_audio_path: Optional[str] = None) -> dict:
+    result = {
+        'ok': True,
+        'planned': 0,
+        'fetched': 0,
+        'written': 0,
+        'skipped_existing': 0,
+        'failed': 0,
+    }
+    rows = [{"source_file": only_audio_path}] if only_audio_path else []
+    result['planned'] = len(rows)
+    append_job_log(f"[INFO] online embedded cover targets: {result['planned']}")
+
+    for item in rows:
+        audio_path = Path(str(item.get('source_file') or '')).resolve()
+        if not audio_path.exists() or not audio_path.is_file():
+            result['failed'] += 1
+            append_job_log(f"[FAIL] embedded cover write -> {audio_path} :: audio file missing")
+            continue
+        fetched = search_itunes_album_art(str(audio_path))
+        if not fetched.get('ok'):
+            result['failed'] += 1
+            append_job_log(f"[FAIL] embedded cover fetch -> {audio_path} :: {fetched.get('error')}")
+            continue
+        result['fetched'] += 1
+        ok, reason = write_cover_to_audio_file(audio_path, fetched.get('image_bytes') or b'', overwrite=overwrite)
+        if ok:
+            clear_audio_metadata_flags_cache()
+            result['written'] += 1
+            append_job_log(f"[WRITE] embedded cover -> {audio_path}")
+            continue
+        if 'already exists' in reason and not overwrite:
+            result['skipped_existing'] += 1
+            append_job_log(f"[SKIP] {audio_path} ({reason})")
+            continue
+        result['failed'] += 1
+        append_job_log(f"[FAIL] embedded cover write -> {audio_path} :: {reason}")
+
+    append_job_log(
+        f"[DONE] fetched={result['fetched']} written={result['written']} skipped_existing={result['skipped_existing']} failed={result['failed']}"
     )
     result['ok'] = result['failed'] == 0
     return result
@@ -2481,13 +2605,15 @@ def run_album_art_scan_job() -> dict:
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "missing_album_art_count": scan.get("missing_album_art_count", 0),
         "missing_album_art_rows": scan.get("missing_album_art_rows", []),
+        "skipped_mixed_album_art_count": scan.get("skipped_mixed_album_art_count", 0),
+        "skipped_mixed_album_art_rows": scan.get("skipped_mixed_album_art_rows", []),
         "missing_album_art_song_count": scan.get("missing_album_art_song_count", 0),
         "missing_album_art_song_rows": scan.get("missing_album_art_song_rows", []),
         "mtw_album_art_song_count": scan.get("mtw_album_art_song_count", 0),
         "mtw_album_art_song_rows": scan.get("mtw_album_art_song_rows", []),
     }
     save_scan_cache(ALBUM_ART_SCAN_CACHE_PATH, payload)
-    append_job_log(f"[DONE] album art scan missing={payload['missing_album_art_count']}")
+    append_job_log(f"[DONE] album art scan missing={payload['missing_album_art_count']} skipped_mixed={payload['skipped_mixed_album_art_count']}")
     return payload
 
 
@@ -2581,6 +2707,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             "missing_lyrics": lyric_scan.get("missing_lyrics_count", 0),
             "lyrics_with_count": max(file_stats.get("songs", 0) - lyric_scan.get("missing_lyrics_count", 0), 0),
             "missing_album_art": album_art_scan.get("missing_album_art_count", 0),
+            "skipped_mixed_album_art": album_art_scan.get("skipped_mixed_album_art_count", 0),
             "music_tag_cover_candidates": music_tag_cover_plan.get("count", 0),
             "success_artists": success_artist_count,
             "failed_artists": failed_artist_count,
@@ -2616,7 +2743,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             {
                 "title": "扫描缺失专辑图片",
                 "status": "ready",
-                "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个缺少专辑图的目录，目标落盘为目录内 cover.jpg。",
+                "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个待修复专辑图目录，另有 {album_art_scan.get('skipped_mixed_album_art_count', 0)} 个混合目录被保护性跳过。",
                 "action_url": "/?page=music-library&view=album-art#missing-album-art",
                 "action_label": "查看专辑图结果",
             },
@@ -2653,6 +2780,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             "album_rows": album_rows[:120] or preview_rows.get("album_rows", []),
             "missing_lyrics_rows": lyric_scan.get("missing_lyrics_rows", []),
             "missing_album_art_rows": album_art_scan.get("missing_album_art_rows", []),
+            "skipped_mixed_album_art_rows": album_art_scan.get("skipped_mixed_album_art_rows", []),
             "missing_album_art_song_rows": album_art_scan.get("missing_album_art_song_rows", []),
             "mtw_album_art_song_rows": album_art_scan.get("mtw_album_art_song_rows", []),
             "music_tag_cover_plan_rows": music_tag_cover_plan.get("rows", []),
@@ -2766,6 +2894,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         "album_dirs": len(unique_album_dirs),
         "missing_lyrics": lyric_scan.get("missing_lyrics_count", 0),
         "missing_album_art": album_art_scan.get("missing_album_art_count", 0),
+        "skipped_mixed_album_art": album_art_scan.get("skipped_mixed_album_art_count", 0),
         "music_tag_cover_candidates": music_tag_cover_plan.get("count", 0),
         "success_artists": success_artist_count,
         "failed_artists": failed_artist_count,
@@ -2801,7 +2930,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         {
             "title": "扫描缺失专辑图片",
             "status": "ready",
-            "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个缺少专辑图的目录，目标落盘为目录内 cover.jpg。",
+            "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个待修复专辑图目录，另有 {album_art_scan.get('skipped_mixed_album_art_count', 0)} 个混合目录被保护性跳过。",
             "action_url": "/?page=music-library&view=album-art#missing-album-art",
             "action_label": "查看专辑图结果",
         },
@@ -2839,6 +2968,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         "album_rows": album_rows[:120],
         "missing_lyrics_rows": lyric_scan.get("missing_lyrics_rows", []),
         "missing_album_art_rows": album_art_scan.get("missing_album_art_rows", []),
+        "skipped_mixed_album_art_rows": album_art_scan.get("skipped_mixed_album_art_rows", []),
         "missing_album_art_song_rows": album_art_scan.get("missing_album_art_song_rows", []),
         "mtw_album_art_song_rows": album_art_scan.get("mtw_album_art_song_rows", []),
         "music_tag_cover_plan_rows": music_tag_cover_plan.get("rows", []),
@@ -3022,6 +3152,14 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
                 only_audio_path = (target or {}).get("audio_path") if target else None
                 only_folder_path = (target or {}).get("folder_path") if target else None
                 result = write_online_album_art(overwrite=overwrite, only_audio_path=only_audio_path, only_folder_path=only_folder_path)
+                job_state["returncode"] = 0 if result.get("ok") else 1
+                return
+
+            if mode in {"song-cover-online-write", "song-cover-online-write-overwrite"}:
+                job_state["command"] = ["online-song-cover-write", f"overwrite={overwrite}"]
+                append_job_log("[INFO] starting online embedded cover scrape job")
+                only_audio_path = (target or {}).get("audio_path") if target else None
+                result = write_online_song_cover(overwrite=overwrite, only_audio_path=only_audio_path)
                 job_state["returncode"] = 0 if result.get("ok") else 1
                 return
 
@@ -3492,7 +3630,7 @@ def api_job():
             return jsonify({"ok": False, "error": "missing-audio-or-candidate"}), 400
         result = write_selected_lyric_candidate(audio_path, candidate_token, overwrite=overwrite)
         return jsonify(result), (200 if result.get("ok") else 400)
-    if mode not in {"dry-run", "write", "scrape", "artist-online-write", "artist-scan-count", "lyrics-scan", "album-art-scan", "album-art-write", "album-art-write-overwrite", "lyrics-write", "lyrics-write-overwrite", "lyrics-online-write", "lyrics-online-write-overwrite", "album-art-online-write", "album-art-online-write-overwrite"}:
+    if mode not in {"dry-run", "write", "scrape", "artist-online-write", "artist-scan-count", "lyrics-scan", "album-art-scan", "album-art-write", "album-art-write-overwrite", "lyrics-write", "lyrics-write-overwrite", "lyrics-online-write", "lyrics-online-write-overwrite", "album-art-online-write", "album-art-online-write-overwrite", "song-cover-online-write", "song-cover-online-write-overwrite"}:
         return jsonify({"ok": False, "error": "invalid mode"}), 400
     started = run_job(mode=mode, overwrite=overwrite, target=target)
     if not started:

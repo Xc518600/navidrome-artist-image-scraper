@@ -78,6 +78,7 @@
             </div>
             <div class="settings-detail-actions">
               <a class="btn btn-primary settings-back-home-button" href="/?page=music-library">返回主页</a>
+              <button type="button" class="btn btn-primary" onclick="return scrapeCurrentSongCover()">刮削并写入内嵌封面</button>
             </div>
             <div class="settings-lyrics-search-bar">
               <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词" oninput="syncSettingsSelectionFromSearch(this.value)">
@@ -212,8 +213,8 @@
     </div>
   </section>
   <section class="card" id="missing-album-art">
-    <h2>缺 Navidrome 专辑图目录（最近一次后台扫描前 200 条）</h2>
-    <p class="hint">这里只展示最近一次后台扫描后的真实结果：只要目录里还没有可用封面文件，就会列出来，并标明可修复来源。</p>
+    <h2>待修复专辑图目录（最近一次后台扫描前 200 条）</h2>
+    <p class="hint">这里只展示真正待修复的目录：混合目录不会算进故障项，会单独列在下方“保护性跳过”区。</p>
     <ul class="simple-list compact-list">
     {% for item in data.missing_album_art_rows %}
       <li>
@@ -249,6 +250,25 @@
       </li>
     {% else %}
       <li>没有发现缺 Navidrome 专辑图目录</li>
+    {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card" id="skipped-mixed-album-art">
+    <h2>混合目录保护性跳过</h2>
+    <p class="hint">这些目录被识别为混合歌曲目录。为避免把某一首歌/某一张专辑的封面错误写成整个目录共用的 cover.jpg，系统已自动跳过，不属于故障项。</p>
+    <ul class="simple-list compact-list">
+    {% for item in data.skipped_mixed_album_art_rows %}
+      <li>
+        <strong>{{ item.artist }}</strong>
+        <span class="badge failed">混合目录，已跳过</span><br>
+        <span class="path-line">{{ item.folder_path }}</span><br>
+        {% if item.mtw_folder_album_name_count %}<span class="muted">识别到的 MTW 专辑数：{{ item.mtw_folder_album_name_count }}</span><br>{% endif %}
+        {% if item.audio_file_count %}<span class="muted">目录内音频数：{{ item.audio_file_count }}</span><br>{% endif %}
+        {% if item.embedded_cover_count %}<span class="muted">带内嵌封面的音频数：{{ item.embedded_cover_count }}</span><br>{% endif %}
+      </li>
+    {% else %}
+      <li>没有混合目录被保护性跳过</li>
     {% endfor %}
     </ul>
   </section>
@@ -296,6 +316,9 @@ function summarizeJobResult(job, fallbackText = '任务已结束') {
   const text = log.join('\n');
   const returncode = job?.returncode;
   if (returncode === 0) {
+    if (text.includes('[WRITE] embedded cover ->')) {
+      return '✅ 歌曲图片刮削成功，已写入内嵌封面';
+    }
     if (text.includes('[WRITE] online embedded lyrics') || text.includes('[WRITE] online sidecar lyric') || text.includes('[WRITE] embedded lyrics ->') || text.includes('[WRITE] sidecar lyric ->')) {
       return '✅ 歌词刮削成功，已写入文件';
     }
@@ -307,6 +330,9 @@ function summarizeJobResult(job, fallbackText = '任务已结束') {
     }
     if (text.includes('cover.jpg already exists')) {
       return 'ℹ️ 这个目录已经有专辑图了，所以这次跳过了';
+    }
+    if (text.includes('embedded cover already exists')) {
+      return 'ℹ️ 这首歌已经有内嵌封面了，所以这次跳过了';
     }
     if (text.includes('[DONE] fetched=0') && text.includes('failed=0')) {
       return 'ℹ️ 任务执行完成，但这次没有需要新写入的内容';
@@ -496,6 +522,24 @@ async function searchSettingsLyrics() {
   return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, { suppressReload: true, suppressSuccessBanner: true, renderToSettings: true });
 }
 
+async function scrapeCurrentSongCover() {
+  const song = window.__selectedSettingsSong;
+  if (!song?.source_file) {
+    showJobBanner('还没有选中歌曲，先点左侧一首歌再刮封面。', 'error');
+    return false;
+  }
+
+  const jobRes = await fetch('/api/job');
+  const currentJob = await jobRes.json().catch(() => ({}));
+  if (currentJob?.running) {
+    showJobBanner('后台当前还有任务在跑，先等它结束，再刮内嵌封面。', 'error');
+    return false;
+  }
+
+  showJobBanner('正在在线搜索歌曲封面并写入内嵌标签...');
+  return submitTargetJob('song-cover-online-write', { audio_path: song.source_file }, { suppressReload: false, suppressSuccessBanner: false, renderToSettings: true });
+}
+
 function renderLyricsCandidates(audioPath, candidates) {
   const panel = document.getElementById('lyrics-candidate-panel');
   const title = document.getElementById('lyrics-candidate-title');
@@ -640,6 +684,8 @@ async function submitJob(event, mode) {
     'album-art-write-overwrite': 'MTW 专辑图覆盖写入任务已启动，正在等待结果...',
     'album-art-online-write': '在线专辑图刮削任务已启动，正在等待结果...',
     'album-art-online-write-overwrite': '在线专辑图覆盖任务已启动，正在等待结果...',
+    'song-cover-online-write': '在线歌曲内嵌封面刮削任务已启动，正在等待结果...',
+    'song-cover-online-write-overwrite': '在线歌曲内嵌封面覆盖任务已启动，正在等待结果...',
   };
 
   const waitingMessage = waitingMessages[mode] || '任务已启动，正在等待结果...';
@@ -708,6 +754,15 @@ async function submitTargetJob(mode, target, options = {}) {
       expectTargetFolder: target?.folder_path || null,
     });
     const resultMessage = summarizeJobResult(job, '这个目录专辑图刮削任务已结束');
+    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+  } else if (mode === 'song-cover-online-write') {
+    const waitingMessage = '这首歌的在线内嵌封面刮削任务已启动，正在等待结果...';
+    showJobBanner(waitingMessage);
+    const job = await waitForJobFinish({
+      expectMode: mode,
+      expectTargetAudio: target?.audio_path || null,
+    });
+    const resultMessage = summarizeJobResult(job, '这首歌内嵌封面刮削任务已结束');
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
   } else if (mode === 'artist-online-write') {
     const waitingMessage = `歌手 ${target?.artist || ''} 的头像刮削任务已启动，正在等待结果...`;
