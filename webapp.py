@@ -1555,6 +1555,67 @@ def search_multisource_lyrics(audio_path_str: str) -> dict:
     return {"ok": False, "error": last_error or "all-providers-failed", "errors": errors}
 
 
+def _download_image_bytes(url: str, headers: Optional[dict] = None) -> tuple[bytes, str]:
+    session = build_http_session()
+    resp = session.get(url, headers=headers or {}, timeout=request_timeout())
+    resp.raise_for_status()
+    return resp.content, str(resp.headers.get("Content-Type") or "").strip()
+
+
+def search_qq_album_art(audio_path_str: str) -> dict:
+    audio_path = Path(audio_path_str)
+    context = track_search_context(audio_path)
+    title = context["title"]
+    if not title:
+        return {"ok": False, "error": "missing-title", "context": context}
+
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    candidate_result = search_qq_song_candidates(audio_path_str, limit=10)
+    if not candidate_result.get("ok"):
+        return {"ok": False, "error": "qq-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
+
+    best = None
+    for match in candidate_result.get("matches") or []:
+        item = match.get("item") or {}
+        score = int(match.get("score") or 0)
+        song_title = str(item.get("songname") or item.get("title") or "").strip()
+        artists = [str(s.get("name") or "").strip() for s in (item.get("singer") or []) if s.get("name")]
+        if not _is_strict_lyric_match(raw_title, raw_artist, song_title, artists, preferred_title, preferred_artist):
+            continue
+        if best is None or score > best[0]:
+            best = (score, item)
+        if score >= 100:
+            break
+
+    if not best:
+        return {"ok": False, "error": "qq-no-strict-match", "context": context}
+
+    item = best[1]
+    album_mid = str(item.get("albummid") or item.get("albumMid") or item.get("albumMID") or "").strip()
+    if not album_mid:
+        return {"ok": False, "error": "qq-album-mid-missing", "context": context, "candidate": item}
+
+    art_url = f"https://y.qq.com/music/photo_new/T002R1200x1200M000{album_mid}.jpg"
+    try:
+        image_bytes, content_type = _download_image_bytes(
+            art_url,
+            headers={"Referer": "https://y.qq.com/", "Origin": "https://y.qq.com"},
+        )
+    except Exception as exc:
+        return {"ok": False, "error": f"qq-image-download-failed: {exc}", "context": context, "candidate": item}
+
+    return {
+        "ok": True,
+        "image_bytes": image_bytes,
+        "mime_type": content_type,
+        "source": "qq",
+        "context": context,
+        "candidate": item,
+        "art_url": art_url,
+    }
+
+
+def search_itunes_album_art(audio_path_str: str) -> dict:
     audio_path = Path(audio_path_str)
     context = track_search_context(audio_path)
     term = f"{context['artist']} {context['album']}"
@@ -1595,13 +1656,13 @@ def search_multisource_lyrics(audio_path_str: str) -> dict:
     if not best or best[0] < 55:
         return {"ok": False, "error": "itunes-no-confident-match", "context": context}
     try:
-        image_resp = session.get(best[1], timeout=request_timeout())
-        image_resp.raise_for_status()
+        image_bytes, content_type = _download_image_bytes(best[1])
     except Exception as exc:
         return {"ok": False, "error": f"itunes-image-download-failed: {exc}", "context": context}
     return {
         "ok": True,
-        "image_bytes": image_resp.content,
+        "image_bytes": image_bytes,
+        "mime_type": content_type,
         "source": "itunes",
         "context": context,
         "candidate": best[2],
@@ -2227,17 +2288,31 @@ def write_online_song_cover(overwrite: bool = False, only_audio_path: Optional[s
             result['failed'] += 1
             append_job_log(f"[FAIL] embedded cover write -> {audio_path} :: audio file missing")
             continue
-        fetched = search_itunes_album_art(str(audio_path))
-        if not fetched.get('ok'):
+        fetched = None
+        fetch_errors = []
+        for source_name, func in (("qq", search_qq_album_art), ("itunes", search_itunes_album_art)):
+            candidate = func(str(audio_path))
+            if candidate.get('ok'):
+                fetched = candidate
+                append_job_log(f"[INFO] embedded cover source -> {audio_path} :: {source_name}")
+                break
+            fetch_errors.append(f"{source_name}:{candidate.get('error')}")
+            append_job_log(f"[WARN] embedded cover fallback -> {audio_path} :: {source_name} {candidate.get('error')}")
+        if not fetched:
             result['failed'] += 1
-            append_job_log(f"[FAIL] embedded cover fetch -> {audio_path} :: {fetched.get('error')}")
+            append_job_log(f"[FAIL] embedded cover fetch -> {audio_path} :: {' | '.join(fetch_errors) or 'all-providers-failed'}")
             continue
         result['fetched'] += 1
-        ok, reason = write_cover_to_audio_file(audio_path, fetched.get('image_bytes') or b'', overwrite=overwrite)
+        ok, reason = write_cover_to_audio_file(
+            audio_path,
+            fetched.get('image_bytes') or b'',
+            mime_type=str(fetched.get('mime_type') or ''),
+            overwrite=overwrite,
+        )
         if ok:
             clear_audio_metadata_flags_cache()
             result['written'] += 1
-            append_job_log(f"[WRITE] embedded cover -> {audio_path}")
+            append_job_log(f"[WRITE] embedded cover -> {audio_path} :: {fetched.get('source')}")
             continue
         if 'already exists' in reason and not overwrite:
             result['skipped_existing'] += 1
