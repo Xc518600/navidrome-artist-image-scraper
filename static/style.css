@@ -104,6 +104,54 @@ h1, h2, h3, p {
   backdrop-filter: blur(12px);
 }
 
+.home-bootstrap-indicator {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 168px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(180deg, rgba(20,16,39,0.9), rgba(12,8,24,0.92));
+  box-shadow: 0 8px 22px rgba(0,0,0,0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 12;
+}
+
+.home-bootstrap-indicator-label {
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #eadbff;
+  letter-spacing: 0.04em;
+}
+
+.home-bootstrap-indicator-bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.home-bootstrap-indicator-bar span {
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,79,216,0.92), rgba(122,92,255,0.92), rgba(39,240,255,0.9));
+  box-shadow: 0 0 10px rgba(122,92,255,0.28);
+  animation: home-bootstrap-progress 1.35s ease-in-out infinite;
+}
+
+@keyframes home-bootstrap-progress {
+  0% { transform: translateX(-115%); }
+  50% { transform: translateX(95%); }
+  100% { transform: translateX(240%); }
+}
+
 h1 {
   font-size: 42px;
   letter-spacing: 0.08em;
@@ -195,7 +243,18 @@ h3 {
 }
 
 .toolbar-actions .btn-primary {
-  box-shadow: 0 0 16px rgba(255,79,216,0.22), 0 0 24px rgba(122,92,255,0.14);
+  background: linear-gradient(135deg, rgba(72, 36, 128, 0.34), rgba(102, 57, 168, 0.26));
+  border-color: rgba(255, 79, 216, 0.58);
+  box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.08), 0 8px 20px rgba(66, 34, 116, 0.14);
+}
+
+.toolbar-actions .btn-primary:hover {
+  border-color: rgba(255, 79, 216, 0.82);
+  box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.14), 0 10px 24px rgba(88, 49, 150, 0.18);
+}
+
+.toolbar-actions .btn-primary:active {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.12);
 }
 
 .btn {
@@ -218,6 +277,47 @@ h3 {
   transform: translateY(-1px);
   border-color: rgba(39,240,255,0.55);
   box-shadow: 0 0 0 1px rgba(39,240,255,0.16), 0 0 22px rgba(39,240,255,0.2), 0 0 34px rgba(255,79,216,0.14);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.88;
+  transform: none;
+}
+
+.progress-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-btn.is-loading {
+  border-color: rgba(39,240,255,0.6);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(25,32,78,0.95), rgba(15,11,34,0.96));
+}
+
+.progress-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(39,240,255,0.18) 20%, rgba(39,240,255,0.38) 50%, rgba(255,79,216,0.18) 80%, transparent 100%);
+  transform: translateX(-100%);
+  animation: progress-btn-sweep 1.2s linear infinite;
+  pointer-events: none;
+}
+
+.progress-btn.is-loading {
+  box-shadow: 0 0 0 1px rgba(39,240,255,0.18), 0 0 22px rgba(39,240,255,0.22), 0 0 34px rgba(255,79,216,0.14);
+}
+
+.progress-btn.is-loading > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes progress-btn-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 .btn:disabled {
@@ -696,11 +796,13 @@ h3 {
 .settings-detail-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   width: 100%;
   margin-top: 2px;
 }
 
 .settings-back-home-button,
+.settings-detail-actions .progress-btn,
 .settings-lyrics-search-button {
   min-height: 42px;
   width: 120px;
@@ -725,6 +827,12 @@ h3 {
   box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.08), 0 8px 20px rgba(66, 34, 116, 0.14);
 }
 
+.settings-detail-actions .progress-btn {
+  background: linear-gradient(135deg, rgba(52, 88, 168, 0.32), rgba(69, 118, 196, 0.24));
+  border-color: rgba(39, 240, 255, 0.56);
+  box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.08), 0 8px 20px rgba(40, 72, 148, 0.14);
+}
+
 .settings-lyrics-search-button {
   flex: 0 0 120px;
   min-width: 120px;
@@ -740,6 +848,7 @@ h3 {
   transform: translateY(-1px);
 }
 
+.settings-detail-actions .progress-btn:hover,
 .settings-lyrics-search-button:hover {
   border-color: rgba(39, 240, 255, 0.8);
   box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.12), 0 10px 24px rgba(50, 92, 176, 0.18);
@@ -747,6 +856,7 @@ h3 {
 }
 
 .settings-back-home-button:active,
+.settings-detail-actions .progress-btn:active,
 .settings-lyrics-search-button:active {
   transform: translateY(0);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.12);
@@ -973,6 +1083,17 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  .home-bootstrap-indicator {
+    top: 10px;
+    right: 12px;
+    width: 136px;
+    padding: 7px 9px;
+  }
+
+  .home-bootstrap-indicator-label {
+    font-size: 10px;
+  }
+
   .settings-shell {
     padding: 14px 12px 16px;
     gap: 10px;
@@ -1039,14 +1160,21 @@ h3 {
     align-items: stretch;
     gap: 6px;
     margin-top: 0;
+    order: 4;
   }
 
   .settings-detail-actions {
+    display: flex;
+    flex-direction: column;
     justify-content: stretch;
+    align-items: stretch;
+    gap: 6px;
     margin-top: 0;
+    order: 5;
   }
 
   .settings-back-home-button,
+  .settings-detail-actions .progress-btn,
   .settings-lyrics-search-button,
   .settings-lyrics-search-bar .btn {
     width: 100%;
@@ -1071,11 +1199,13 @@ h3 {
   }
 
   .settings-lyrics-search-button,
+  .settings-detail-actions .progress-btn,
   .settings-lyrics-search-bar .btn {
     width: 100%;
     min-width: 0;
   }
 
+  .settings-detail-actions .progress-btn,
   .settings-lyrics-search-button {
     flex: none;
     align-self: auto;
@@ -1084,6 +1214,7 @@ h3 {
     box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.08), 0 8px 20px rgba(66, 34, 116, 0.14);
   }
 
+  .settings-detail-actions .progress-btn:hover,
   .settings-lyrics-search-button:hover {
     border-color: rgba(255, 79, 216, 0.82);
     box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.14), 0 10px 24px rgba(88, 49, 150, 0.18);

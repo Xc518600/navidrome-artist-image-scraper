@@ -28,6 +28,10 @@
       <a class="btn btn-primary" href="/?page=settings">设置</a>
       {% endif %}
     </div>
+    <div id="home-bootstrap-indicator" class="home-bootstrap-indicator" style="display:none;" aria-live="polite">
+      <div class="home-bootstrap-indicator-label">扫描中</div>
+      <div class="home-bootstrap-indicator-bar"><span></span></div>
+    </div>
   </header>
   {% endif %}
 
@@ -77,8 +81,8 @@
               </div>
             </div>
             <div class="settings-detail-actions">
+              <button type="button" id="song-cover-scrape-button" class="btn btn-primary progress-btn" data-idle-label="刮削封面" data-loading-label="正在刮削封面..." onclick="return scrapeCurrentSongCover()">刮削封面</button>
               <a class="btn btn-primary settings-back-home-button" href="/?page=music-library">返回主页</a>
-              <button type="button" class="btn btn-primary" onclick="return scrapeCurrentSongCover()">刮削并写入内嵌封面</button>
             </div>
             <div class="settings-lyrics-search-bar">
               <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词" oninput="syncSettingsSelectionFromSearch(this.value)">
@@ -354,6 +358,53 @@ function showJobBanner(message, tone = 'info') {
   node.className = tone === 'error' ? 'error' : 'hint';
 }
 
+function showHomeBootstrapIndicator(label = '扫描中') {
+  const node = document.getElementById('home-bootstrap-indicator');
+  if (!node) return;
+  const labelNode = node.querySelector('.home-bootstrap-indicator-label');
+  if (labelNode) labelNode.textContent = label;
+  node.style.display = 'flex';
+}
+
+function hideHomeBootstrapIndicator() {
+  const node = document.getElementById('home-bootstrap-indicator');
+  if (!node) return;
+  node.style.display = 'none';
+}
+
+function setButtonProgress(button, active, progressText = '') {
+  if (!button) return;
+  const idleLabel = button.dataset.idleLabel || button.textContent || '执行中';
+  const loadingLabel = progressText || button.dataset.loadingLabel || '处理中...';
+  if (active) {
+    button.disabled = true;
+    button.classList.add('is-loading');
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = loadingLabel;
+    return;
+  }
+  button.disabled = false;
+  button.classList.remove('is-loading');
+  button.removeAttribute('aria-busy');
+  button.textContent = idleLabel;
+}
+
+function formatRunningJobLabel(job) {
+  const mode = String(job?.mode || '').trim();
+  const command = Array.isArray(job?.command) ? job.command.join(' ') : String(job?.command || '').trim();
+  if (mode === 'scrape' || command.includes('scrape_artist_images.py')) {
+    return '歌手头像自动刮削';
+  }
+  if (mode === 'lyrics-scan') return '歌词扫描';
+  if (mode === 'album-art-scan') return '专辑图扫描';
+  if (mode === 'artist-scan-count') return '歌手统计扫描';
+  if (mode === 'lyrics-online-write') return '单曲歌词刮削';
+  if (mode === 'album-art-online-write') return '专辑图在线刮削';
+  if (mode === 'song-cover-online-write') return '单曲内嵌封面刮削';
+  if (mode === 'artist-online-write') return '歌手头像手动刮削';
+  return mode || '后台任务';
+}
+
 function updateSettingsDetailSubtitle(song) {
   const artist = document.getElementById('settings-detail-artist');
   if (artist) artist.textContent = song?.artist || '';
@@ -408,6 +459,7 @@ function selectSettingsSong(button) {
     return;
   }
   window.__selectedSettingsSong = song;
+  persistSelectedSettingsSong(song);
   const title = document.getElementById('settings-detail-title');
   if (title) title.textContent = song.title || '歌曲详情';
   updateSettingsDetailSubtitle(song);
@@ -432,6 +484,75 @@ function selectSettingsSong(button) {
     const key = node.getAttribute('data-bool');
     node.textContent = song[key] ? '有' : '无';
   });
+}
+
+function getSelectedSettingsSongPath(song = null) {
+  const currentSong = song || window.__selectedSettingsSong || null;
+  return String(currentSong?.source_file || currentSong?.id || '').trim();
+}
+
+function updateSettingsUrlSelection(song = null, options = {}) {
+  const { replace = true } = options;
+  const selectedPath = getSelectedSettingsSongPath(song);
+  if (!selectedPath) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('page', 'settings');
+  url.searchParams.set('selected', selectedPath);
+  if (replace) {
+    window.history.replaceState({}, '', url.toString());
+  } else {
+    window.history.pushState({}, '', url.toString());
+  }
+}
+
+function persistSelectedSettingsSong(song = null) {
+  const selectedPath = getSelectedSettingsSongPath(song);
+  if (!selectedPath) return;
+  updateSettingsUrlSelection(song, { replace: true });
+  try {
+    window.sessionStorage.setItem('navidrome_selected_song_path', selectedPath);
+  } catch (e) {}
+}
+
+function reloadSettingsWithSelectedSong(options = {}) {
+  const { delayMs = 500 } = options;
+  const selectedPath = getSelectedSettingsSongPath();
+  setTimeout(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'settings');
+    if (selectedPath) {
+      url.searchParams.set('selected', selectedPath);
+      try {
+        window.sessionStorage.setItem('navidrome_selected_song_path', selectedPath);
+      } catch (e) {}
+    }
+    window.location.href = url.toString();
+  }, delayMs);
+}
+
+function restoreSettingsSelection() {
+  const url = new URL(window.location.href);
+  let selectedPath = String(url.searchParams.get('selected') || url.searchParams.get('path') || '').trim();
+  if (!selectedPath) {
+    try {
+      selectedPath = String(window.sessionStorage.getItem('navidrome_selected_song_path') || '').trim();
+    } catch (e) {}
+  }
+  if (!selectedPath) return false;
+  const buttons = Array.from(document.querySelectorAll('.settings-song-item'));
+  const targetButton = buttons.find((button) => {
+    try {
+      const song = JSON.parse(button.dataset.song || '{}');
+      const sourceFile = String(song?.source_file || '').trim();
+      const songId = String(song?.id || '').trim();
+      return sourceFile === selectedPath || songId === selectedPath;
+    } catch (e) {
+      return false;
+    }
+  });
+  if (!targetButton) return false;
+  selectSettingsSong(targetButton);
+  return true;
 }
 
 function filterSettingsSongs(keyword) {
@@ -523,6 +644,7 @@ async function searchSettingsLyrics() {
 }
 
 async function scrapeCurrentSongCover() {
+  const actionButton = document.getElementById('song-cover-scrape-button');
   const song = window.__selectedSettingsSong;
   if (!song?.source_file) {
     showJobBanner('还没有选中歌曲，先点左侧一首歌再刮封面。', 'error');
@@ -532,12 +654,14 @@ async function scrapeCurrentSongCover() {
   const jobRes = await fetch('/api/job');
   const currentJob = await jobRes.json().catch(() => ({}));
   if (currentJob?.running) {
-    showJobBanner('后台当前还有任务在跑，先等它结束，再刮内嵌封面。', 'error');
+    const runningLabel = formatRunningJobLabel(currentJob);
+    showJobBanner(`后台当前正在运行：${runningLabel}。请等它结束后，再刮这首歌的内嵌封面。`, 'error');
     return false;
   }
 
+  setButtonProgress(actionButton, true, '正在检查任务状态...');
   showJobBanner('正在在线搜索歌曲封面并写入内嵌标签...');
-  return submitTargetJob('song-cover-online-write', { audio_path: song.source_file }, { suppressReload: false, suppressSuccessBanner: false, renderToSettings: true });
+  return submitTargetJob('song-cover-online-write', { audio_path: song.source_file }, { suppressReload: false, suppressSuccessBanner: false, renderToSettings: true, progressButtonId: 'song-cover-scrape-button' });
 }
 
 function renderLyricsCandidates(audioPath, candidates) {
@@ -593,7 +717,7 @@ async function submitCandidateWrite(audioPath, candidateToken) {
   const sourceLabel = data?.source_label || formatLyricsSourceLabel(data?.source);
   const message = `✅ 已写入歌词：${data.title || ''}（来源：${sourceLabel}）`;
   showJobBanner(message, 'info');
-  setTimeout(() => location.reload(), 500);
+  reloadSettingsWithSelectedSong({ delayMs: 500 });
   return false;
 }
 
@@ -699,12 +823,19 @@ async function submitJob(event, mode) {
   if (mode === 'artist-scan-count') {
     return false;
   }
-  setTimeout(() => location.reload(), 500);
+  if (job?.returncode === 0) {
+    if (renderToSettings) {
+      reloadSettingsWithSelectedSong({ delayMs: 500 });
+    } else {
+      setTimeout(() => location.reload(), 500);
+    }
+  }
   return false;
 }
 
 async function submitTargetJob(mode, target, options = {}) {
-  const { suppressReload = false, suppressSuccessBanner = false, renderToSettings = false } = options;
+  const { suppressReload = false, suppressSuccessBanner = false, renderToSettings = false, progressButtonId = '' } = options;
+  const progressButton = progressButtonId ? document.getElementById(progressButtonId) : null;
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -712,6 +843,7 @@ async function submitTargetJob(mode, target, options = {}) {
   });
   const data = await res.json();
   if (!res.ok) {
+    setButtonProgress(progressButton, false);
     let message = data.error || '任务启动失败';
     if (res.status === 409 && data.error === 'job already running') {
       message = '后台当前还有任务在跑，请稍等它结束后再试。';
@@ -756,6 +888,7 @@ async function submitTargetJob(mode, target, options = {}) {
     const resultMessage = summarizeJobResult(job, '这个目录专辑图刮削任务已结束');
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
   } else if (mode === 'song-cover-online-write') {
+    setButtonProgress(progressButton, true, '正在刮削封面...');
     const waitingMessage = '这首歌的在线内嵌封面刮削任务已启动，正在等待结果...';
     showJobBanner(waitingMessage);
     const job = await waitForJobFinish({
@@ -764,6 +897,11 @@ async function submitTargetJob(mode, target, options = {}) {
     });
     const resultMessage = summarizeJobResult(job, '这首歌内嵌封面刮削任务已结束');
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    setButtonProgress(progressButton, false);
+    if (job?.returncode === 0) {
+      setTimeout(() => location.reload(), 500);
+    }
+    return false;
   } else if (mode === 'artist-online-write') {
     const waitingMessage = `歌手 ${target?.artist || ''} 的头像刮削任务已启动，正在等待结果...`;
     showJobBanner(waitingMessage);
@@ -829,25 +967,26 @@ async function autoBootstrapHomePage() {
     window.sessionStorage.setItem(HOME_BOOTSTRAP_SESSION_KEY, 'pending');
   } catch (e) {}
 
-  showJobBanner('首页已自动启动后台扫描：先扫描歌词，再刮削歌手头像，请稍候...');
+  showHomeBootstrapIndicator('扫描中');
   const startedAt = Date.now();
   while (Date.now() - startedAt < 600000) {
     const res = await fetch('/api/job');
     const data = await res.json();
     const bootstrap = data.home_bootstrap || {};
     if (bootstrap.error) {
+      hideHomeBootstrapIndicator();
       try { window.sessionStorage.removeItem(HOME_BOOTSTRAP_SESSION_KEY); } catch (e) {}
       showJobBanner(`❌ 后台自动扫描失败：${bootstrap.error}`, 'error');
       return;
     }
     if (bootstrap.done && !bootstrap.running) {
+      hideHomeBootstrapIndicator();
       try { window.sessionStorage.setItem(HOME_BOOTSTRAP_SESSION_KEY, '1'); } catch (e) {}
-      showJobBanner('后台自动扫描已完成，正在刷新首页结果...');
-      setTimeout(() => location.reload(), 500);
       return;
     }
     await new Promise(r => setTimeout(r, 1200));
   }
+  hideHomeBootstrapIndicator();
   try { window.sessionStorage.removeItem(HOME_BOOTSTRAP_SESSION_KEY); } catch (e) {}
   showJobBanner('⚠️ 后台自动扫描等待超时，请稍后手动刷新页面查看结果。', 'error');
 }
@@ -859,6 +998,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       window.__selectedSettingsSong = JSON.parse(activeSongButton.dataset.song || '{}');
     } catch (e) {}
+  }
+  const restored = restoreSettingsSelection();
+  if (!restored && window.__selectedSettingsSong) {
+    persistSelectedSettingsSong(window.__selectedSettingsSong);
   }
 });
 

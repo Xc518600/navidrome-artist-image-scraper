@@ -1562,6 +1562,260 @@ def _download_image_bytes(url: str, headers: Optional[dict] = None) -> tuple[byt
     return resp.content, str(resp.headers.get("Content-Type") or "").strip()
 
 
+def search_netease_album_art(audio_path_str: str) -> dict:
+    audio_path = Path(audio_path_str)
+    context = track_search_context(audio_path)
+    title = context["title"]
+    if not title:
+        return {"ok": False, "error": "missing-title", "context": context}
+
+    session = build_http_session()
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    title_cf = raw_title.casefold()
+    artist_cf = raw_artist.casefold()
+    part_cfs = [p.casefold() for p in artist_parts]
+    preferred_title_cf = preferred_title.casefold()
+    preferred_artist_cf = preferred_artist.casefold()
+    best = None
+    near_matches = []
+    errors = []
+
+    for term in query_terms[:6]:
+        try:
+            resp = session.get(
+                "https://music.163.com/api/cloudsearch/pc",
+                params={"s": term, "type": "1", "limit": "10", "offset": "0"},
+                headers={"Referer": "https://music.163.com/"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            songs = ((resp.json() or {}).get("result") or {}).get("songs") or []
+        except Exception as exc:
+            errors.append(str(exc))
+            continue
+
+        for song in songs:
+            candidate_title = str(song.get("name") or "").strip()
+            artists = [str(a.get("name") or "").strip() for a in (song.get("ar") or []) if a.get("name")]
+            score = _score_song_candidate(
+                title_cf,
+                artist_cf,
+                part_cfs,
+                preferred_title_cf,
+                preferred_artist_cf,
+                candidate_title,
+                artists,
+                boost_exact_combo=True,
+            )
+            near_matches.append({"score": score, "song": song, "term": term})
+            if _is_strict_lyric_match(raw_title, raw_artist, candidate_title, artists, preferred_title, preferred_artist):
+                if best is None or score > best[0]:
+                    best = (max(score, 140), song, term)
+                if score >= 100:
+                    break
+        if best is not None and best[0] >= 100:
+            break
+
+    if not best:
+        near_matches.sort(key=lambda item: -int(item.get("score") or 0))
+        if near_matches:
+            top_song = near_matches[0].get("song") or {}
+            album_info = top_song.get("al") or {}
+            pic_url = str(album_info.get("picUrl") or "").strip()
+            if pic_url and int(near_matches[0].get("score") or 0) >= 90:
+                best = (int(near_matches[0].get("score") or 0), top_song, near_matches[0].get("term") or "")
+
+    if not best:
+        return {"ok": False, "error": "netease-no-strict-match", "context": context, "errors": errors}
+
+    album_info = (best[1].get("al") or {}) if isinstance(best[1], dict) else {}
+    pic_url = str(album_info.get("picUrl") or "").strip()
+    if not pic_url:
+        return {"ok": False, "error": "netease-picurl-missing", "context": context, "candidate": best[1]}
+
+    art_url = pic_url.replace("http://", "https://")
+    if "?" not in art_url:
+        art_url = f"{art_url}?param=1200y1200"
+
+    try:
+        image_bytes, content_type = _download_image_bytes(art_url, headers={"Referer": "https://music.163.com/"})
+    except Exception as exc:
+        return {"ok": False, "error": f"netease-image-download-failed: {exc}", "context": context, "candidate": best[1]}
+
+    return {
+        "ok": True,
+        "image_bytes": image_bytes,
+        "mime_type": content_type,
+        "source": "netease",
+        "context": context,
+        "candidate": best[1],
+        "art_url": art_url,
+    }
+
+
+def search_kugou_album_art(audio_path_str: str) -> dict:
+    audio_path = Path(audio_path_str)
+    context = track_search_context(audio_path)
+    title = context["title"]
+    if not title:
+        return {"ok": False, "error": "missing-title", "context": context}
+
+    query_terms, preferred_title, preferred_artist, _artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    candidate_result = search_kugou_song_candidates(audio_path_str, limit=10)
+    if not candidate_result.get("ok"):
+        return {"ok": False, "error": "kugou-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
+
+    best = None
+    for match in candidate_result.get("matches") or []:
+        item = match.get("item") or {}
+        score = int(match.get("score") or 0)
+        song_title = str(item.get("song") or "").strip()
+        artists = [str(item.get("singer") or "").strip()]
+        if not _is_strict_lyric_match(raw_title, raw_artist, song_title, artists, preferred_title, preferred_artist):
+            continue
+        if best is None or score > best[0]:
+            best = (score, item)
+        if score >= 100:
+            break
+
+    if not best:
+        return {"ok": False, "error": "kugou-no-strict-match", "context": context}
+
+    session = build_http_session()
+    for term in query_terms[:6]:
+        try:
+            resp = session.get(
+                "http://mobilecdn.kugou.com/api/v3/search/song",
+                params={"format": "json", "keyword": term, "page": "1", "pagesize": "10", "showtype": "1"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            items = (((resp.json() or {}).get("data") or {}).get("info") or [])
+        except Exception:
+            continue
+
+        strict_matches = []
+        for item in items:
+            candidate_title = str(item.get("songname") or item.get("filename") or "").strip()
+            singer_name = str(item.get("singername") or "").strip()
+            artists = [part.strip() for part in re.split(r"[、/,;&]", singer_name) if part.strip()] or [singer_name]
+            if not _is_strict_lyric_match(raw_title, raw_artist, candidate_title, artists, preferred_title, preferred_artist):
+                continue
+            strict_matches.append(item)
+
+        if not strict_matches:
+            continue
+
+        cover_item = strict_matches[0]
+        img_url = str(cover_item.get("imgurl") or cover_item.get("album_img") or "").strip()
+        if not img_url:
+            continue
+        art_url = img_url.replace("{size}", "1200").replace("/400/", "/1200/")
+        art_url = art_url.replace("http://", "https://")
+        try:
+            image_bytes, content_type = _download_image_bytes(art_url)
+        except Exception as exc:
+            return {"ok": False, "error": f"kugou-image-download-failed: {exc}", "context": context, "candidate": cover_item}
+        return {
+            "ok": True,
+            "image_bytes": image_bytes,
+            "mime_type": content_type,
+            "source": "kugou",
+            "context": context,
+            "candidate": cover_item,
+            "art_url": art_url,
+        }
+
+    return {"ok": False, "error": "kugou-cover-url-missing", "context": context, "candidate": best[1]}
+
+
+def search_kuwo_album_art(audio_path_str: str) -> dict:
+    audio_path = Path(audio_path_str)
+    context = track_search_context(audio_path)
+    title = context["title"]
+    if not title:
+        return {"ok": False, "error": "missing-title", "context": context}
+
+    query_terms, preferred_title, preferred_artist, _artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    candidate_result = search_kuwo_song_candidates(audio_path_str, limit=10)
+    if not candidate_result.get("ok"):
+        return {"ok": False, "error": "kuwo-no-confident-match", "context": context, "errors": candidate_result.get("errors") or []}
+
+    best = None
+    for match in candidate_result.get("matches") or []:
+        item = match.get("item") or {}
+        score = int(match.get("score") or 0)
+        song_title = str(item.get("name") or "").strip()
+        artists = [str(item.get("artist") or "").strip()]
+        if not _is_strict_lyric_match(raw_title, raw_artist, song_title, artists, preferred_title, preferred_artist):
+            continue
+        if best is None or score > best[0]:
+            best = (score, item)
+        if score >= 100:
+            break
+
+    if not best:
+        return {"ok": False, "error": "kuwo-no-strict-match", "context": context}
+
+    session = build_http_session()
+    session.headers.update({
+        "Referer": "https://www.kuwo.cn/",
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json,text/plain,*/*",
+    })
+    for term in query_terms[:6]:
+        try:
+            resp = session.get(
+                "https://search.kuwo.cn/r.s",
+                params={"ft": "music", "all": term, "rn": "10", "pn": "0", "pcjson": "1"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            items = (resp.json() or {}).get("abslist") or []
+        except Exception:
+            continue
+
+        strict_matches = []
+        for item in items:
+            candidate_title = str(item.get("SONGNAME") or item.get("name") or item.get("NAME") or "").strip()
+            artist_name = str(item.get("ARTIST") or item.get("artist") or item.get("ARTISTNAME") or "").strip()
+            artists = [artist_name] if artist_name else []
+            if not _is_strict_lyric_match(raw_title, raw_artist, candidate_title, artists, preferred_title, preferred_artist):
+                continue
+            strict_matches.append(item)
+
+        if not strict_matches:
+            continue
+
+        cover_item = strict_matches[0]
+        pic = str(cover_item.get("web_albumpic_short") or cover_item.get("hts_MVPIC") or cover_item.get("MVPIC") or "").strip()
+        if not pic:
+            continue
+        art_url = pic
+        if art_url.startswith("//"):
+            art_url = f"https:{art_url}"
+        elif art_url.startswith("/"):
+            art_url = f"https://img4.kuwo.cn{art_url}"
+        elif not art_url.startswith("http://") and not art_url.startswith("https://"):
+            art_url = f"https://img4.kuwo.cn/star/albumcover/{art_url}"
+        art_url = art_url.replace("http://", "https://")
+        try:
+            image_bytes, content_type = _download_image_bytes(art_url, headers={"Referer": "https://www.kuwo.cn/"})
+        except Exception as exc:
+            return {"ok": False, "error": f"kuwo-image-download-failed: {exc}", "context": context, "candidate": cover_item}
+        return {
+            "ok": True,
+            "image_bytes": image_bytes,
+            "mime_type": content_type,
+            "source": "kuwo",
+            "context": context,
+            "candidate": cover_item,
+            "art_url": art_url,
+        }
+
+    return {"ok": False, "error": "kuwo-cover-url-missing", "context": context, "candidate": best[1]}
+
+
 def search_qq_album_art(audio_path_str: str) -> dict:
     audio_path = Path(audio_path_str)
     context = track_search_context(audio_path)
@@ -2290,7 +2544,7 @@ def write_online_song_cover(overwrite: bool = False, only_audio_path: Optional[s
             continue
         fetched = None
         fetch_errors = []
-        for source_name, func in (("qq", search_qq_album_art), ("itunes", search_itunes_album_art)):
+        for source_name, func in (("qq", search_qq_album_art), ("netease", search_netease_album_art), ("kugou", search_kugou_album_art), ("kuwo", search_kuwo_album_art), ("itunes", search_itunes_album_art)):
             candidate = func(str(audio_path))
             if candidate.get('ok'):
                 fetched = candidate
@@ -3304,6 +3558,16 @@ def index():
         extensions = set(s.lower() for s in config.get("audio_extensions", []))
         skip_dirs = list(config.get("skip_dirs", []))
         songs = collect_song_detail_rows(music_root, extensions, skip_dirs, limit=300)
+        selected_path = str(request.args.get("selected") or request.args.get("path") or "").strip()
+        selected_song = songs[0] if songs else None
+        if selected_path and songs:
+            selected_path_resolved = str(Path(selected_path).resolve())
+            for song in songs:
+                song_source = str(song.get("source_file") or "").strip()
+                song_id = str(song.get("id") or "").strip()
+                if song_id == selected_path_resolved or str(Path(song_source).resolve()) == selected_path_resolved:
+                    selected_song = song
+                    break
         resolved_paths = {
             "config_path": str(CONFIG_PATH),
             "music_root": str(resolve_music_root(config)),
@@ -3313,7 +3577,7 @@ def index():
         return render_template(
             "index.html",
             page=page,
-            data={"config": config, "resolved_paths": resolved_paths, "songs": songs, "selected_song": songs[0] if songs else None},
+            data={"config": config, "resolved_paths": resolved_paths, "songs": songs, "selected_song": selected_song},
             current_filter=current_filter,
             asset_version=ASSET_VERSION,
             page_updated_at=PAGE_UPDATED_AT,
