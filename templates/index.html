@@ -30,6 +30,7 @@
     </div>
     <div id="home-bootstrap-indicator" class="home-bootstrap-indicator" style="display:none;" aria-live="polite">
       <div class="home-bootstrap-indicator-label">扫描中</div>
+      <div class="home-bootstrap-indicator-status">正在后台扫描歌手、歌词和专辑图，请稍等…</div>
       <div class="home-bootstrap-indicator-bar"><span></span></div>
     </div>
   </header>
@@ -86,7 +87,7 @@
             </div>
             <div class="settings-lyrics-search-bar">
               <input id="settings-lyrics-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名搜索匹配歌词" oninput="syncSettingsSelectionFromSearch(this.value)">
-              <button type="button" class="btn btn-primary settings-lyrics-search-button" onclick="return searchSettingsLyrics()">搜索歌词</button>
+              <button type="button" id="settings-lyrics-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌词" data-loading-label="正在搜索歌词..." onclick="return searchSettingsLyrics()">搜索歌词</button>
             </div>
           </div>
         </div>
@@ -362,7 +363,9 @@ function showHomeBootstrapIndicator(label = '扫描中') {
   const node = document.getElementById('home-bootstrap-indicator');
   if (!node) return;
   const labelNode = node.querySelector('.home-bootstrap-indicator-label');
+  const statusNode = node.querySelector('.home-bootstrap-indicator-status');
   if (labelNode) labelNode.textContent = label;
+  if (statusNode) statusNode.textContent = `正在后台${label}歌手、歌词和专辑图，请稍等…`;
   node.style.display = 'flex';
 }
 
@@ -569,6 +572,40 @@ function handleSettingsCoverError(img) {
   if (placeholder) placeholder.style.display = 'flex';
 }
 
+function refreshSettingsCover(song = null) {
+  const selectedSong = song || window.__selectedSettingsSong;
+  const sourceFile = String(selectedSong?.source_file || '').trim();
+  const coverImg = document.getElementById('settings-cover-image');
+  const placeholder = document.getElementById('settings-cover-placeholder');
+  const coverStatus = document.querySelector('[data-bool="has_embedded_cover"]');
+  if (!sourceFile) return;
+
+  const nextUrl = `/api/song-cover?path=${encodeURIComponent(sourceFile)}&t=${Date.now()}`;
+  if (!coverImg) {
+    if (coverStatus) coverStatus.textContent = '有';
+    if (placeholder) placeholder.style.display = 'none';
+    return;
+  }
+
+  const handleLoad = () => {
+    coverImg.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    if (coverStatus) coverStatus.textContent = '有';
+    coverImg.removeEventListener('load', handleLoad);
+    coverImg.removeEventListener('error', handleError);
+  };
+
+  const handleError = () => {
+    handleSettingsCoverError(coverImg);
+    coverImg.removeEventListener('load', handleLoad);
+    coverImg.removeEventListener('error', handleError);
+  };
+
+  coverImg.addEventListener('load', handleLoad);
+  coverImg.addEventListener('error', handleError);
+  coverImg.src = nextUrl;
+}
+
 function formatLyricsSourceLabel(source) {
   const value = String(source || '').trim().toLowerCase();
   const map = {
@@ -621,6 +658,7 @@ function renderSettingsLyricsCandidates(audioPath, candidates, keyword = '') {
 
 async function searchSettingsLyrics() {
   const input = document.getElementById('settings-lyrics-search-input');
+  const actionButton = document.getElementById('settings-lyrics-search-button');
   const song = window.__selectedSettingsSong;
   const keyword = String(input?.value || '').trim();
   if (!song?.source_file) {
@@ -639,8 +677,15 @@ async function searchSettingsLyrics() {
     return false;
   }
 
+  setButtonProgress(actionButton, true, '正在检查任务状态...');
   showJobBanner(`正在搜索与“${keyword}”匹配的歌词候选...`);
-  return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, { suppressReload: true, suppressSuccessBanner: true, renderToSettings: true });
+  return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, {
+    suppressReload: true,
+    suppressSuccessBanner: true,
+    renderToSettings: true,
+    progressButtonId: 'settings-lyrics-search-button',
+    progressLoadingText: '正在搜索歌词...'
+  });
 }
 
 async function scrapeCurrentSongCover() {
@@ -834,7 +879,13 @@ async function submitJob(event, mode) {
 }
 
 async function submitTargetJob(mode, target, options = {}) {
-  const { suppressReload = false, suppressSuccessBanner = false, renderToSettings = false, progressButtonId = '' } = options;
+  const {
+    suppressReload = false,
+    suppressSuccessBanner = false,
+    renderToSettings = false,
+    progressButtonId = '',
+    progressLoadingText = ''
+  } = options;
   const progressButton = progressButtonId ? document.getElementById(progressButtonId) : null;
   const res = await fetch('/api/job', {
     method: 'POST',
@@ -852,6 +903,7 @@ async function submitTargetJob(mode, target, options = {}) {
     return false;
   }
   if (mode === 'lyrics-online-write') {
+    setButtonProgress(progressButton, true, progressLoadingText || (renderToSettings ? '正在搜索歌词...' : '处理中...'));
     const waitingMessage = renderToSettings
       ? `正在按“${target?.search_keyword || ''}”搜索歌词候选...`
       : '这首歌的在线歌词刮削任务已启动，正在等待结果...';
@@ -871,12 +923,14 @@ async function submitTargetJob(mode, target, options = {}) {
       } else {
         renderLyricsCandidates(target?.audio_path || '', candidates);
       }
+      setButtonProgress(progressButton, false);
       return false;
     }
     const resultMessage = summarizeJobResult(job, '这首歌歌词刮削任务已结束');
     if (!suppressSuccessBanner || resultMessage.startsWith('❌')) {
       showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
     }
+    setButtonProgress(progressButton, false);
   } else if (mode === 'album-art-online-write') {
     const waitingMessage = '这个目录的在线专辑图刮削任务已启动，正在等待结果...';
     showJobBanner(waitingMessage);
@@ -899,7 +953,7 @@ async function submitTargetJob(mode, target, options = {}) {
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
     setButtonProgress(progressButton, false);
     if (job?.returncode === 0) {
-      setTimeout(() => location.reload(), 500);
+      refreshSettingsCover(window.__selectedSettingsSong);
     }
     return false;
   } else if (mode === 'artist-online-write') {
