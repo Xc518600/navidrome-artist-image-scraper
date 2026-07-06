@@ -14,7 +14,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse
 
 import requests
 
@@ -1505,6 +1505,462 @@ def fetch_kuwo_candidate_lyric(candidate: dict) -> str:
         return _extract_kuwo_lyric_text(data)
     except Exception:
         return ""
+
+
+def _format_duration_text(seconds: int | float | None) -> str:
+    try:
+        total = int(float(seconds or 0))
+    except Exception:
+        total = 0
+    minutes = total // 60
+    remain = total % 60
+    return f"{minutes:02d}:{remain:02d}"
+
+
+def _safe_music_result_id(source: str, raw_id: str) -> str:
+    return f"{source}:{str(raw_id or '').strip()}"
+
+
+def _build_music_result(
+    *,
+    source: str,
+    source_label: str,
+    result_id: str,
+    title: str,
+    artist: str,
+    artists: list[str] | None = None,
+    album: str = "",
+    duration: int | float | None = None,
+    cover_url: str = "",
+    preview_url: str = "",
+    download_url: str = "",
+    external_url: str = "",
+    score: int = 0,
+    preview_status: str = "unknown",
+    preview_reason: str = "",
+    raw: Optional[dict] = None,
+) -> dict:
+    artists = [str(item).strip() for item in (artists or []) if str(item).strip()]
+    artist_text = str(artist or "").strip() or (" / ".join(artists) if artists else "")
+    duration_int = int(float(duration or 0)) if duration else 0
+    return {
+        "id": result_id,
+        "source": source,
+        "source_label": source_label,
+        "title": str(title or "").strip(),
+        "artist": artist_text,
+        "artists": artists or ([artist_text] if artist_text else []),
+        "album": str(album or "").strip(),
+        "duration": duration_int,
+        "duration_text": _format_duration_text(duration_int),
+        "cover_url": str(cover_url or "").strip(),
+        "preview_url": str(preview_url or "").strip(),
+        "download_url": str(download_url or "").strip(),
+        "external_url": str(external_url or "").strip(),
+        "preview_available": bool(preview_url),
+        "download_available": bool(download_url),
+        "preview_status": str(preview_status or ("available" if preview_url else "unavailable")).strip(),
+        "preview_reason": str(preview_reason or "").strip(),
+        "score": int(score or 0),
+        "raw": raw or {},
+    }
+
+
+def search_itunes_song_candidates(keyword: str, limit: int = 10) -> dict:
+    keyword = str(keyword or "").strip()
+    if not keyword:
+        return {"ok": False, "error": "missing-keyword"}
+    session = build_http_session()
+    try:
+        resp = session.get(
+            "https://itunes.apple.com/search",
+            params={"term": keyword, "limit": str(limit), "media": "music", "entity": "song", "country": "CN"},
+            timeout=min(request_timeout(), 8),
+        )
+        resp.raise_for_status()
+        payload = resp.json() or {}
+        items = payload.get("results") or []
+    except Exception as exc:
+        return {"ok": False, "error": f"itunes-search-failed: {exc}"}
+
+    results = []
+    for item in items[:limit]:
+        track_id = str(item.get("trackId") or "").strip()
+        if not track_id:
+            continue
+        artwork = str(item.get("artworkUrl100") or item.get("artworkUrl60") or item.get("artworkUrl30") or "").strip()
+        if artwork:
+            artwork = artwork.replace("100x100bb", "600x600bb").replace("60x60bb", "600x600bb").replace("30x30bb", "600x600bb")
+        results.append(
+            _build_music_result(
+                source="itunes",
+                source_label="iTunes",
+                result_id=_safe_music_result_id("itunes", track_id),
+                title=str(item.get("trackName") or "").strip(),
+                artist=str(item.get("artistName") or "").strip(),
+                artists=[str(item.get("artistName") or "").strip()],
+                album=str(item.get("collectionName") or "").strip(),
+                duration=int((item.get("trackTimeMillis") or 0) / 1000),
+                cover_url=artwork,
+                preview_url=str(item.get("previewUrl") or "").strip(),
+                download_url=str(item.get("previewUrl") or "").strip(),
+                external_url=str(item.get("trackViewUrl") or "").strip(),
+                score=100,
+                preview_status="available" if str(item.get("previewUrl") or "").strip() else "unavailable",
+                preview_reason="iTunes 预览流可直接试听" if str(item.get("previewUrl") or "").strip() else "iTunes 未返回预览流",
+                raw=item,
+            )
+        )
+    return {"ok": True, "results": results}
+
+
+def search_netease_song_candidates_by_keyword(keyword: str, limit: int = 10) -> dict:
+    keyword = str(keyword or "").strip()
+    if not keyword:
+        return {"ok": False, "error": "missing-keyword"}
+    session = build_http_session()
+    try:
+        resp = session.get(
+            "https://music.163.com/api/cloudsearch/pc",
+            params={"s": keyword, "type": "1", "limit": str(limit), "offset": "0"},
+            headers={"Referer": "https://music.163.com/", "User-Agent": "Mozilla/5.0"},
+            timeout=min(request_timeout(), 8),
+        )
+        resp.raise_for_status()
+        items = ((resp.json() or {}).get("result") or {}).get("songs") or []
+    except Exception as exc:
+        return {"ok": False, "error": f"netease-search-failed: {exc}"}
+
+    results = []
+    for item in items[:limit]:
+        song_id = str(item.get("id") or "").strip()
+        if not song_id:
+            continue
+        artists = [str(a.get("name") or "").strip() for a in (item.get("ar") or item.get("artists") or []) if str(a.get("name") or "").strip()]
+        album = item.get("al") or item.get("album") or {}
+        cover_url = str(album.get("picUrl") or "").strip()
+        external_url = f"https://music.163.com/#/song?id={song_id}"
+        results.append(
+            _build_music_result(
+                source="netease",
+                source_label="网易云",
+                result_id=_safe_music_result_id("netease", song_id),
+                title=str(item.get("name") or "").strip(),
+                artist=" / ".join(artists),
+                artists=artists,
+                album=str(album.get("name") or "").strip(),
+                duration=int((item.get("dt") or 0) / 1000),
+                cover_url=cover_url,
+                external_url=external_url,
+                score=92,
+                preview_status="checking",
+                preview_reason="网易云需进一步检测是否存在可用预览流",
+                raw=item,
+            )
+        )
+    return {"ok": True, "results": results}
+
+
+def resolve_netease_song_media(song_id: str) -> dict:
+    song_id = str(song_id or "").strip()
+    if not song_id:
+        return {"ok": False, "error": "missing-song-id"}
+    session = build_http_session()
+    try:
+        detail_resp = session.get(
+            "https://music.163.com/api/song/detail",
+            params={"ids": f"[{song_id}]"},
+            headers={"Referer": "https://music.163.com/", "User-Agent": "Mozilla/5.0"},
+            timeout=min(request_timeout(), 8),
+        )
+        detail_resp.raise_for_status()
+        detail_items = (detail_resp.json() or {}).get("songs") or []
+        song = detail_items[0] if detail_items else {}
+    except Exception as exc:
+        return {"ok": False, "error": f"netease-detail-failed: {exc}"}
+
+    try:
+        media_resp = session.post(
+            "https://music.163.com/api/song/enhance/player/url",
+            data={"ids": f"[{song_id}]", "br": "320000"},
+            headers={"Referer": "https://music.163.com/", "User-Agent": "Mozilla/5.0"},
+            timeout=min(request_timeout(), 8),
+        )
+        media_resp.raise_for_status()
+        media_items = (media_resp.json() or {}).get("data") or []
+        media = media_items[0] if media_items else {}
+    except Exception as exc:
+        return {"ok": False, "error": f"netease-media-failed: {exc}"}
+
+    media_url = str(media.get("url") or "").strip()
+    if not media_url:
+        return {"ok": False, "error": "netease-media-url-empty", "raw": media}
+
+    artists = [str(a.get("name") or "").strip() for a in (song.get("artists") or song.get("ar") or []) if str(a.get("name") or "").strip()]
+    album = song.get("album") or song.get("al") or {}
+    cover_url = str(album.get("picUrl") or "").strip()
+    duration = int((media.get("time") or song.get("duration") or song.get("dt") or 0) / 1000)
+    return {
+        "ok": True,
+        **_build_music_result(
+            source="netease",
+            source_label="网易云",
+            result_id=_safe_music_result_id("netease", song_id),
+            title=str(song.get("name") or "").strip(),
+            artist=" / ".join(artists),
+            artists=artists,
+            album=str(album.get("name") or "").strip(),
+            duration=duration,
+            cover_url=cover_url,
+            preview_url=media_url,
+            download_url=media_url,
+            external_url=f"https://music.163.com/#/song?id={song_id}",
+            score=95,
+            preview_status="available",
+            preview_reason="网易云已返回可用音频流",
+            raw={"song": song, "media": media},
+        ),
+        "expires_in": int(media.get("expi") or 0),
+        "mime_type": f"audio/{str(media.get('type') or 'mpeg').strip().lower()}",
+    }
+
+
+def enrich_netease_preview_availability(results: list[dict], max_checks: int = 6) -> list[dict]:
+    checked = 0
+    enriched = []
+    for item in results:
+        if str(item.get("source") or "") != "netease":
+            enriched.append(item)
+            continue
+        if checked >= max_checks:
+            item = dict(item)
+            item["preview_available"] = False
+            item["download_available"] = False
+            item["preview_status"] = "unchecked"
+            item["preview_reason"] = "为避免搜索过慢，这首网易云结果暂未预检；点击来源页可进一步确认"
+            enriched.append(item)
+            continue
+        checked += 1
+        song_id = str(item.get("id") or "").split(":", 1)[1].strip() if ":" in str(item.get("id") or "") else ""
+        if not song_id:
+            item = dict(item)
+            item["preview_available"] = False
+            item["download_available"] = False
+            item["preview_status"] = "unavailable"
+            item["preview_reason"] = "网易云歌曲 ID 缺失"
+            enriched.append(item)
+            continue
+        media = resolve_netease_song_media(song_id)
+        if media.get("ok") and media.get("preview_url"):
+            item = dict(item)
+            item["preview_available"] = True
+            item["download_available"] = True
+            item["preview_status"] = "available"
+            item["preview_reason"] = "网易云已预检通过，可直接试听"
+            item["preview_url"] = str(media.get("preview_url") or "").strip()
+            item["download_url"] = str(media.get("download_url") or "").strip()
+        else:
+            item = dict(item)
+            item["preview_available"] = False
+            item["download_available"] = False
+            item["preview_status"] = "unavailable"
+            error_text = str(media.get("error") or "网易云当前未返回可用音频流").strip()
+            item["preview_reason"] = error_text
+        enriched.append(item)
+    return enriched
+
+
+def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[list[str]] = None) -> dict:
+    keyword = str(keyword or "").strip()
+    if not keyword:
+        return {"ok": False, "error": "missing-keyword", "results": []}
+
+    requested_sources = [str(item).strip().lower() for item in (sources or ["itunes", "netease", "qq", "kugou", "kuwo"]) if str(item).strip()]
+    if not requested_sources:
+        requested_sources = ["itunes", "netease", "qq", "kugou", "kuwo"]
+
+    session = build_http_session()
+    results: list[dict] = []
+    seen_ids: set[str] = set()
+    errors: list[dict] = []
+
+    def add_result(item: dict):
+        item_id = str(item.get("id") or "").strip()
+        if not item_id or item_id in seen_ids:
+            return
+        seen_ids.add(item_id)
+        results.append(item)
+
+    if "itunes" in requested_sources:
+        itunes_result = search_itunes_song_candidates(keyword, limit=min(limit, 8))
+        if itunes_result.get("ok"):
+            for item in itunes_result.get("results") or []:
+                add_result(item)
+        else:
+            errors.append({"source": "itunes", "error": itunes_result.get("error")})
+
+    if "netease" in requested_sources:
+        netease_result = search_netease_song_candidates_by_keyword(keyword, limit=min(limit, 10))
+        if netease_result.get("ok"):
+            for item in netease_result.get("results") or []:
+                add_result(item)
+        else:
+            errors.append({"source": "netease", "error": netease_result.get("error")})
+
+    if "qq" in requested_sources:
+        try:
+            resp = session.get(
+                "https://c6.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg",
+                params={"key": keyword, "format": "json"},
+                headers={"Referer": "https://y.qq.com/", "Origin": "https://y.qq.com"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            items = ((((resp.json() or {}).get("data") or {}).get("song") or {}).get("itemlist") or [])
+            for raw_item in items[:limit]:
+                songmid = str(raw_item.get("mid") or raw_item.get("songmid") or "").strip()
+                if not songmid:
+                    continue
+                song_name = str(raw_item.get("name") or raw_item.get("songname") or raw_item.get("title") or "").strip()
+                singer_text = str(raw_item.get("singer") or "").strip()
+                artists = [part.strip() for part in singer_text.split("/") if part.strip()]
+                add_result(
+                    _build_music_result(
+                        source="qq",
+                        source_label="QQ音乐",
+                        result_id=_safe_music_result_id("qq", songmid),
+                        title=song_name,
+                        artist=singer_text,
+                        artists=artists,
+                        cover_url=str(raw_item.get("pic") or "").strip(),
+                        score=88,
+                        raw=raw_item,
+                    )
+                )
+        except Exception as exc:
+            errors.append({"source": "qq", "error": str(exc)})
+
+    if "kugou" in requested_sources:
+        try:
+            resp = session.get(
+                "https://songsearch.kugou.com/song_search_v2",
+                params={"keyword": keyword, "page": "1", "pagesize": str(min(limit, 12)), "platform": "WebFilter", "format": "json"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            items = ((resp.json() or {}).get("data") or {}).get("lists") or []
+            for raw_item in items[:limit]:
+                song_hash = str(raw_item.get("FileHash") or raw_item.get("HQFileHash") or raw_item.get("SQFileHash") or "").strip()
+                if not song_hash:
+                    continue
+                singer_text = str(raw_item.get("SingerName") or "").strip()
+                add_result(
+                    _build_music_result(
+                        source="kugou",
+                        source_label="酷狗",
+                        result_id=_safe_music_result_id("kugou", song_hash),
+                        title=str(raw_item.get("SongName") or "").strip(),
+                        artist=singer_text,
+                        artists=[part.strip() for part in singer_text.split("、") if part.strip()] or [singer_text],
+                        album=str(raw_item.get("AlbumName") or "").strip(),
+                        duration=raw_item.get("Duration") or raw_item.get("SQDuration") or raw_item.get("HQDuration") or 0,
+                        score=84,
+                        raw=raw_item,
+                    )
+                )
+        except Exception as exc:
+            errors.append({"source": "kugou", "error": str(exc)})
+
+    if "kuwo" in requested_sources:
+        try:
+            resp = session.get(
+                "https://search.kuwo.cn/r.s",
+                params={"ft": "music", "all": keyword, "rn": str(min(limit, 10)), "pn": "0", "pcjson": "1"},
+                headers={"Referer": "https://www.kuwo.cn/", "User-Agent": "Mozilla/5.0", "Accept": "application/json,text/plain,*/*"},
+                timeout=min(request_timeout(), 8),
+            )
+            resp.raise_for_status()
+            try:
+                payload = resp.json() or {}
+            except Exception:
+                payload = resp.text
+            items = _extract_kuwo_music_items(payload)
+            for raw_item in items[:limit]:
+                rid = _normalize_kuwo_music_id(raw_item)
+                if not rid:
+                    continue
+                singer_text = str(raw_item.get("ARTIST") or raw_item.get("artist") or raw_item.get("ARTISTNAME") or "").strip()
+                add_result(
+                    _build_music_result(
+                        source="kuwo",
+                        source_label="酷我",
+                        result_id=_safe_music_result_id("kuwo", rid),
+                        title=str(raw_item.get("SONGNAME") or raw_item.get("name") or raw_item.get("NAME") or "").strip(),
+                        artist=singer_text,
+                        artists=[part.strip() for part in singer_text.split("&") if part.strip()] or [singer_text],
+                        album=str(raw_item.get("ALBUM") or raw_item.get("album") or "").strip(),
+                        score=80,
+                        raw=raw_item,
+                    )
+                )
+        except Exception as exc:
+            errors.append({"source": "kuwo", "error": str(exc)})
+
+    results = enrich_netease_preview_availability(results, max_checks=min(6, max(1, limit // 3)))
+    results.sort(key=lambda item: (-int(item.get("preview_available") or 0), -int(item.get("download_available") or 0), -int(item.get("score") or 0), item.get("source") or "", item.get("title") or ""))
+    return {"ok": True, "keyword": keyword, "results": results[:limit], "errors": errors}
+
+
+def resolve_music_preview(result_id: str, keyword: str = "") -> dict:
+    result_id = str(result_id or "").strip()
+    if not result_id or ":" not in result_id:
+        return {"ok": False, "error": "invalid-id"}
+    source = result_id.split(":", 1)[0].strip().lower()
+    if source == "itunes":
+        search_result = search_itunes_song_candidates(keyword, limit=10) if keyword else {"ok": False, "results": []}
+        if search_result.get("ok"):
+            for item in search_result.get("results") or []:
+                if str(item.get("id") or "") == result_id and item.get("preview_url"):
+                    return {"ok": True, **item}
+        return {"ok": False, "error": "preview-not-found"}
+    if source == "netease":
+        song_id = result_id.split(":", 1)[1].strip()
+        return resolve_netease_song_media(song_id)
+    return {"ok": False, "error": "preview-unavailable-for-source"}
+
+
+def stream_remote_music_preview(url: str, filename: str = "preview.m4a"):
+    parsed = urlparse(str(url or "").strip())
+    if parsed.scheme not in {"http", "https"}:
+        abort(400)
+    allowed_hosts = {
+        "audio-ssl.itunes.apple.com",
+        "audio-ssl.itunes.apple.com.akadns.net",
+        "m701.music.126.net",
+        "m702.music.126.net",
+        "m703.music.126.net",
+        "m704.music.126.net",
+        "m705.music.126.net",
+        "m706.music.126.net",
+        "m707.music.126.net",
+        "m708.music.126.net",
+        "m709.music.126.net",
+        "m710.music.126.net",
+    }
+    hostname = (parsed.hostname or "").strip().lower()
+    if hostname not in allowed_hosts:
+        abort(403)
+    session = build_http_session()
+    upstream = session.get(url, stream=True, timeout=request_timeout())
+    upstream.raise_for_status()
+    response = Response(upstream.iter_content(chunk_size=65536), mimetype=str(upstream.headers.get("Content-Type") or "audio/mp4"))
+    safe_ascii_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(filename or "preview.m4a")).strip("._") or "preview.m4a"
+    if "." not in safe_ascii_name:
+        safe_ascii_name = f"{safe_ascii_name}.m4a"
+    response.headers["Content-Disposition"] = f'inline; filename="{safe_ascii_name}"'
+    if upstream.headers.get("Content-Length"):
+        response.headers["Content-Length"] = str(upstream.headers.get("Content-Length"))
+    return response
 
 
 def search_kuwo_lyrics(audio_path_str: str) -> dict:
@@ -3701,10 +4157,11 @@ def index():
         view = request.args.get("view", "home")
         lyrics_scan = view == "lyrics"
         album_art_scan = view == "album-art"
+        music_search_view = view == "music-search"
         deep_media_scan = False
         auto_home_bootstrap_wait = False
         home_bootstrap_done = request.args.get("home_bootstrap_done") == "1"
-        if not lyrics_scan and not album_art_scan and not home_bootstrap_done:
+        if not lyrics_scan and not album_art_scan and not music_search_view and not home_bootstrap_done:
             auto_home_bootstrap_wait = bool(ensure_home_bootstrap_started() or home_bootstrap_state.get("running") or home_bootstrap_state.get("done"))
         try:
             data = build_library_state(scan_live=live_scan, lyrics_scan_only=deep_media_scan)
@@ -4069,6 +4526,44 @@ def api_scan_count():
     data["cache_max_age_seconds"] = ARTIST_SCAN_COUNT_CACHE_MAX_AGE_SECONDS
     data["cache_age_seconds"] = get_artist_scan_cache_age_seconds(data)
     return jsonify(data)
+
+
+@app.route("/api/music-search")
+def api_music_search():
+    keyword = str(request.args.get("q") or request.args.get("keyword") or "").strip()
+    raw_sources = str(request.args.get("sources") or "itunes,qq,kugou,kuwo").strip()
+    limit = int(request.args.get("limit") or 24)
+    sources = [item.strip().lower() for item in raw_sources.split(",") if item.strip()]
+    result = search_music_by_keyword(keyword, limit=limit, sources=sources)
+    return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@app.route("/api/music-preview")
+def api_music_preview():
+    result_id = str(request.args.get("id") or "").strip()
+    keyword = str(request.args.get("keyword") or "").strip()
+    result = resolve_music_preview(result_id, keyword=keyword)
+    return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@app.route("/api/music-preview-stream")
+def api_music_preview_stream():
+    url = str(request.args.get("url") or "").strip()
+    title = str(request.args.get("title") or "preview").strip() or "preview"
+    safe_name = re.sub(r"[^\w\-.\u4e00-\u9fff]+", "_", title).strip("_") or "preview"
+    return stream_remote_music_preview(url, filename=f"{safe_name}.m4a")
+
+
+@app.route("/api/music-download")
+def api_music_download():
+    result_id = str(request.args.get("id") or "").strip()
+    keyword = str(request.args.get("keyword") or "").strip()
+    result = resolve_music_preview(result_id, keyword=keyword)
+    if not result.get("ok") or not result.get("download_url"):
+        return jsonify({"ok": False, "error": "download-unavailable"}), 400
+    title = str(result.get("title") or "preview").strip() or "preview"
+    safe_name = re.sub(r"[^\w\-.\u4e00-\u9fff]+", "_", title).strip("_") or "preview"
+    return stream_remote_music_preview(str(result.get("download_url") or "").strip(), filename=f"{safe_name}.m4a")
 
 
 @app.route("/api/job", methods=["GET", "POST"])

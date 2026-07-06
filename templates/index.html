@@ -14,7 +14,7 @@
       <p class="eyebrow">Navidrome 媒体工具台</p>
       <h1>媒体工具台</h1>
       <p class="sub">
-        这里统一放歌手头像、歌词、专辑图相关入口；首页只保留工具条，点对应入口再看详情或执行任务。
+        这里统一放歌手头像、歌词、专辑图、歌曲搜索下载相关入口；首页只保留工具条，点对应入口再看详情或执行任务。
       </p>
       <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
       <div id="job-result-banner" class="hint" style="display:none;"></div>
@@ -25,6 +25,7 @@
       <a class="btn btn-primary" href="/?page=artist-images">歌手头像</a>
       <a class="btn btn-primary" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
       <a class="btn btn-primary" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
+      <a class="btn btn-primary" href="/?page=music-library&view=music-search">歌曲搜索下载</a>
       <a class="btn btn-primary" href="/?page=settings">设置</a>
       {% endif %}
     </div>
@@ -196,6 +197,52 @@
       {% endfor %}
       </ul>
     </div>
+  </section>
+  {% endif %}
+
+  {% if library_view == 'music-search' %}
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <div>
+        <p class="eyebrow">详情页</p>
+        <h2>歌曲搜索下载</h2>
+        <p class="hint">支持搜索歌曲、试听，以及对支持的来源做下载。当前已接入 iTunes 与网易云的试听/下载增强，同时展示 QQ / 酷狗 / 酷我 搜索结果。</p>
+      </div>
+      <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
+    </div>
+  </section>
+  <section class="card" id="music-search-entry">
+    <div class="settings-panel-title-row">
+      <h3>搜索歌曲</h3>
+      <span class="settings-badge settings-badge-secondary">搜索 + 试听</span>
+    </div>
+    <div class="settings-lyrics-search-bar music-search-toolbar">
+      <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
+      <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
+    </div>
+    <div class="hint" id="music-search-summary">输入关键词后开始搜索。当前优先支持 iTunes / 网易云试听和下载，其他来源先展示搜索结果。</div>
+  </section>
+
+  <section class="card" id="music-preview-panel" style="display:none;">
+    <div class="settings-panel-title-row">
+      <h3>试听播放器</h3>
+      <span class="settings-badge settings-badge-secondary" id="music-preview-source-badge">未播放</span>
+    </div>
+    <p class="hint" id="music-preview-title">请选择一首歌试听</p>
+    <audio id="music-preview-audio" controls preload="none" style="width:100%;"></audio>
+    <div class="settings-detail-actions" style="margin-top:12px;">
+      <a id="music-preview-download-link" class="btn btn-primary" href="#" target="_blank" rel="noopener" style="display:none;">下载当前试听</a>
+    </div>
+  </section>
+
+  <section class="card" id="music-search-results-panel">
+    <div class="settings-panel-title-row">
+      <h3>搜索结果</h3>
+      <span class="settings-badge settings-badge-secondary" id="music-search-count-badge">0 首</span>
+    </div>
+    <ul class="simple-list compact-list" id="music-search-results-list">
+      <li>还没有搜索结果</li>
+    </ul>
   </section>
   {% endif %}
 
@@ -763,6 +810,166 @@ function removePendingArtistFromUI(artistName) {
   if (pendingListHint) {
     pendingListHint.textContent = nextCount ? '当前只显示待处理数量。' : '';
   }
+}
+
+function updateMusicSearchSummary(message, tone = 'info') {
+  const node = document.getElementById('music-search-summary');
+  if (!node) return;
+  node.textContent = message;
+  node.className = tone === 'error' ? 'error' : 'hint';
+}
+
+function formatMusicPreviewStatus(item) {
+  const status = String(item?.preview_status || '').trim();
+  if (status === 'available') return '可试听';
+  if (status === 'checking') return '检测中';
+  if (status === 'unchecked') return '未预检';
+  return '暂不可试听';
+}
+
+function renderMusicSearchResults(results, keyword = '') {
+  const list = document.getElementById('music-search-results-list');
+  const badge = document.getElementById('music-search-count-badge');
+  if (!list || !badge) return;
+  list.innerHTML = '';
+  const rows = Array.isArray(results) ? results : [];
+  badge.textContent = `${rows.length} 首`;
+  if (!rows.length) {
+    const li = document.createElement('li');
+    li.textContent = keyword ? `没有找到“${keyword}”的可用结果` : '还没有搜索结果';
+    list.appendChild(li);
+    return;
+  }
+
+  for (const item of rows) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '未知歌曲';
+    li.appendChild(strong);
+    li.appendChild(document.createElement('br'));
+
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `歌手：${item.artist || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source_label || item.source || '-'} ｜ 时长：${item.duration_text || '--:--'}`;
+    li.appendChild(meta);
+    li.appendChild(document.createElement('br'));
+
+    const previewHint = document.createElement('span');
+    previewHint.className = 'muted';
+    previewHint.textContent = `试听状态：${formatMusicPreviewStatus(item)}${item.preview_reason ? ` ｜ ${item.preview_reason}` : ''}`;
+    li.appendChild(previewHint);
+    li.appendChild(document.createElement('br'));
+
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'settings-detail-actions';
+    actionWrap.style.marginTop = '8px';
+
+    const playButton = document.createElement('button');
+    playButton.type = 'button';
+    playButton.className = 'btn btn-small';
+    playButton.textContent = item.preview_available ? '试听' : formatMusicPreviewStatus(item);
+    playButton.disabled = !item.preview_available;
+    playButton.onclick = () => playMusicPreview(item, keyword);
+    actionWrap.appendChild(playButton);
+
+    if (item.download_available) {
+      const downloadLink = document.createElement('a');
+      downloadLink.className = 'btn btn-small';
+      downloadLink.href = `/api/music-download?id=${encodeURIComponent(item.id)}&keyword=${encodeURIComponent(keyword || '')}`;
+      downloadLink.target = '_blank';
+      downloadLink.rel = 'noopener';
+      downloadLink.textContent = '下载';
+      actionWrap.appendChild(downloadLink);
+    } else {
+      const disabled = document.createElement('button');
+      disabled.type = 'button';
+      disabled.className = 'btn btn-small';
+      disabled.disabled = true;
+      disabled.textContent = item.preview_reason && String(item.source || '') === 'netease' ? '当前不可下载' : '暂不支持下载';
+      actionWrap.appendChild(disabled);
+    }
+
+    if (item.external_url) {
+      const extLink = document.createElement('a');
+      extLink.className = 'btn btn-small';
+      extLink.href = item.external_url;
+      extLink.target = '_blank';
+      extLink.rel = 'noopener';
+      extLink.textContent = '打开来源页';
+      actionWrap.appendChild(extLink);
+    }
+
+    li.appendChild(actionWrap);
+    list.appendChild(li);
+  }
+}
+
+async function searchMusicCatalog() {
+  const input = document.getElementById('music-search-input');
+  const button = document.getElementById('music-search-button');
+  const keyword = String(input?.value || '').trim();
+  if (!keyword) {
+    updateMusicSearchSummary('先输入歌曲名或歌手名再搜索。', 'error');
+    return false;
+  }
+  setButtonProgress(button, true, '正在搜索歌曲...');
+  updateMusicSearchSummary(`正在搜索“${keyword}”...`);
+  try {
+    const res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent('itunes,netease,qq,kugou,kuwo')}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      throw new Error(data?.error || '搜索失败');
+    }
+    renderMusicSearchResults(data.results || [], keyword);
+    updateMusicSearchSummary(`搜索完成：共找到 ${(data.results || []).length} 首相关歌曲。${(data.errors || []).length ? '部分来源搜索失败，已自动跳过。' : ''}`);
+  } catch (error) {
+    renderMusicSearchResults([], keyword);
+    updateMusicSearchSummary(`搜索失败：${error.message}`, 'error');
+  } finally {
+    setButtonProgress(button, false);
+  }
+  return false;
+}
+
+async function playMusicPreview(item, keyword = '') {
+  const panel = document.getElementById('music-preview-panel');
+  const title = document.getElementById('music-preview-title');
+  const badge = document.getElementById('music-preview-source-badge');
+  const audio = document.getElementById('music-preview-audio');
+  const downloadLink = document.getElementById('music-preview-download-link');
+  if (!panel || !title || !badge || !audio || !downloadLink) return false;
+
+  title.textContent = `正在准备试听：${item.title || ''} - ${item.artist || ''}`;
+  badge.textContent = item.source_label || item.source || '未知来源';
+  panel.style.display = 'block';
+
+  try {
+    const res = await fetch(`/api/music-preview?id=${encodeURIComponent(item.id)}&keyword=${encodeURIComponent(keyword || '')}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok || !data?.preview_url) {
+      const reason = data?.preview_reason || item?.preview_reason || data?.error || '当前来源暂不支持试听';
+      throw new Error(reason);
+    }
+    const streamUrl = `/api/music-preview-stream?url=${encodeURIComponent(data.preview_url)}&title=${encodeURIComponent(data.title || 'preview')}`;
+    audio.src = streamUrl;
+    title.textContent = `正在试听：${data.title || item.title || ''} - ${data.artist || item.artist || ''}`;
+    if (data.download_url) {
+      downloadLink.href = `/api/music-download?id=${encodeURIComponent(data.id)}&keyword=${encodeURIComponent(keyword || '')}`;
+      downloadLink.style.display = '';
+    } else {
+      downloadLink.style.display = 'none';
+    }
+    try {
+      await audio.play();
+    } catch (e) {}
+  } catch (error) {
+    title.textContent = `试听失败：${error.message}`;
+    audio.removeAttribute('src');
+    audio.load();
+    downloadLink.style.display = 'none';
+    updateMusicSearchSummary(`试听失败：${error.message}`, 'error');
+  }
+  return false;
 }
 
 async function submitJob(event, mode) {
