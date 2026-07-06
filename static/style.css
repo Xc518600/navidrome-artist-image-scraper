@@ -818,7 +818,10 @@ h3 {
 
 .settings-back-home-button,
 .settings-detail-actions .progress-btn,
-.settings-lyrics-search-button {
+.settings-lyrics-search-button,
+.artist-images-back-home-button,
+.lyrics-back-home-button,
+.album-art-back-home-button {
   min-height: 42px;
   width: 120px;
   padding: 11px 16px;
@@ -881,6 +884,33 @@ h3 {
   box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.08), 0 8px 20px rgba(40, 72, 148, 0.14);
 }
 
+.artist-images-back-home-button {
+  width: 120px;
+  min-width: 120px;
+  align-self: stretch;
+  background: linear-gradient(135deg, rgba(52, 88, 168, 0.32), rgba(69, 118, 196, 0.24));
+  border-color: rgba(39, 240, 255, 0.56);
+  box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.08), 0 8px 20px rgba(40, 72, 148, 0.14);
+}
+
+.lyrics-back-home-button {
+  width: 120px;
+  min-width: 120px;
+  align-self: stretch;
+  background: linear-gradient(135deg, rgba(52, 88, 168, 0.32), rgba(69, 118, 196, 0.24));
+  border-color: rgba(39, 240, 255, 0.56);
+  box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.08), 0 8px 20px rgba(40, 72, 148, 0.14);
+}
+
+.album-art-back-home-button {
+  width: 120px;
+  min-width: 120px;
+  align-self: stretch;
+  background: linear-gradient(135deg, rgba(52, 88, 168, 0.32), rgba(69, 118, 196, 0.24));
+  border-color: rgba(39, 240, 255, 0.56);
+  box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.08), 0 8px 20px rgba(40, 72, 148, 0.14);
+}
+
 .settings-back-home-button:hover {
   border-color: rgba(255, 79, 216, 0.82);
   box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.14), 0 10px 24px rgba(88, 49, 150, 0.18);
@@ -888,7 +918,10 @@ h3 {
 }
 
 .settings-detail-actions .progress-btn:hover,
-.settings-lyrics-search-button:hover {
+.settings-lyrics-search-button:hover,
+.artist-images-back-home-button:hover,
+.lyrics-back-home-button:hover,
+.album-art-back-home-button:hover {
   border-color: rgba(39, 240, 255, 0.8);
   box-shadow: 0 0 0 1px rgba(39, 240, 255, 0.12), 0 10px 24px rgba(50, 92, 176, 0.18);
   transform: translateY(-1px);
@@ -896,7 +929,10 @@ h3 {
 
 .settings-back-home-button:active,
 .settings-detail-actions .progress-btn:active,
-.settings-lyrics-search-button:active {
+.settings-lyrics-search-button:active,
+.artist-images-back-home-button:active,
+.lyrics-back-home-button:active,
+.album-art-back-home-button:active {
   transform: translateY(0);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.12);
 }
@@ -1204,7 +1240,10 @@ h3 {
   .settings-back-home-button,
   .settings-detail-actions .progress-btn,
   .settings-lyrics-search-button,
-  .settings-lyrics-search-bar .btn {
+  .settings-lyrics-search-bar .btn,
+  .artist-images-back-home-button,
+  .lyrics-back-home-button,
+  .album-art-back-home-button {
     width: 100%;
     min-width: 0;
     min-height: 42px;
@@ -1228,13 +1267,19 @@ h3 {
 
   .settings-lyrics-search-button,
   .settings-detail-actions .progress-btn,
-  .settings-lyrics-search-bar .btn {
+  .settings-lyrics-search-bar .btn,
+  .artist-images-back-home-button,
+  .lyrics-back-home-button,
+  .album-art-back-home-button {
     width: 100%;
     min-width: 0;
   }
 
   .settings-detail-actions .progress-btn,
-  .settings-lyrics-search-button {
+  .settings-lyrics-search-button,
+  .artist-images-back-home-button,
+  .lyrics-back-home-button,
+  .album-art-back-home-button {
     flex: none;
     align-self: auto;
     background: linear-gradient(135deg, rgba(72, 36, 128, 0.34), rgba(102, 57, 168, 0.26));
@@ -1250,7 +1295,10 @@ h3 {
   }
 
   .settings-detail-actions .progress-btn:hover,
-  .settings-lyrics-search-button:hover {
+  .settings-lyrics-search-button:hover,
+  .artist-images-back-home-button:hover,
+  .lyrics-back-home-button:hover,
+  .album-art-back-home-button:hover {
     border-color: rgba(255, 79, 216, 0.82);
     box-shadow: 0 0 0 1px rgba(255, 79, 216, 0.14), 0 10px 24px rgba(88, 49, 150, 0.18);
   }

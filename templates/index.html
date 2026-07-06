@@ -116,7 +116,7 @@
         <p class="hint">最近扫描时间：{{ data.artist_scan_count_updated_at or '还没有后台扫描结果，刷新页面会自动触发扫描' }}</p>
       </div>
       <div class="section-head-actions">
-        <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
+        <a class="btn btn-primary settings-lyrics-search-button artist-images-back-home-button" href="/?page=music-library">返回主页</a>
       </div>
     </div>
   </section>
@@ -170,7 +170,7 @@
         <h2>刮削歌词</h2>
         <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描歌词”' }}</p>
       </div>
-      <a class="btn btn-primary" href="/?page=music-library">返回主页</a>
+      <a class="btn btn-primary settings-lyrics-search-button lyrics-back-home-button" href="/?page=music-library">返回主页</a>
     </div>
   </section>
   <section class="grid stats">
@@ -214,7 +214,7 @@
         <h2>专辑图扫描结果</h2>
         <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描专辑图”' }}</p>
       </div>
-      <a class="btn btn-primary" href="/?page=music-library">返回首页</a>
+      <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
     </div>
   </section>
   <section class="card" id="missing-album-art">

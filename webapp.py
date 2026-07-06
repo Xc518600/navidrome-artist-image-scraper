@@ -1124,6 +1124,42 @@ def _build_lyric_query_terms(context: dict) -> tuple[list[str], str, str, list[s
     return query_terms, preferred_title, preferred_artist, artist_parts, title, artist
 
 
+def _build_kuwo_query_terms(context: dict) -> tuple[list[str], str, str, list[str], str, str]:
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    seen = set()
+    kuwo_terms = []
+
+    def simplify_title(value: str) -> str:
+        text = str(value or '').strip()
+        if not text:
+            return ''
+        text = re.sub(r'[（(][^）)]*[）)]', ' ', text)
+        text = re.sub(r'\b(?:single version|album version|japanese ver\.?|japanese version|ver\.?|version)\b', ' ', text, flags=re.I)
+        text = text.replace('离开吧', ' ')
+        text = re.sub(r'\s+', ' ', text).strip(' -_/')
+        return text.strip()
+
+    def add_term(term: str):
+        t = str(term or '').strip()
+        if not t or t in seen:
+            return
+        seen.add(t)
+        kuwo_terms.append(t)
+
+    for term in query_terms:
+        add_term(term)
+    simplified_title = simplify_title(preferred_title) or simplify_title(raw_title)
+    if simplified_title:
+        add_term(f"{simplified_title} {preferred_artist}".strip())
+        for part in artist_parts:
+            add_term(f"{simplified_title} {part}".strip())
+        add_term(simplified_title)
+    add_term(preferred_artist)
+    for part in artist_parts:
+        add_term(part)
+    return kuwo_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist
+
+
 def search_qq_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     audio_path = Path(audio_path_str)
     context = track_search_context(audio_path)
@@ -1270,20 +1306,49 @@ def _format_kuwo_time_tag(raw: str) -> str:
     return f"{minute:02d}:{second:02d}.{fraction:02d}"
 
 
+def _extract_kuwo_music_items(payload) -> list:
+    if isinstance(payload, dict):
+        items = payload.get("abslist") or payload.get("data") or []
+        return items if isinstance(items, list) else []
+    if not isinstance(payload, str):
+        return []
+    text = payload.strip()
+    if not text:
+        return []
+    rows = []
+    current = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key == "MUSICRID" and current:
+            rows.append(current)
+            current = {}
+        current[key] = value
+    if current:
+        rows.append(current)
+    return rows
+
+
 def _extract_kuwo_lyric_text(data: dict) -> str:
-    payload = (data or {}).get("data") or {}
-    raw_lyric = str(payload.get("lrclist") or "").strip()
+    if not isinstance(data, dict):
+        return ""
+    payload = data.get("data") if isinstance(data.get("data"), dict) else data
+    raw_lyric = str(payload.get("lrclist") or payload.get("lrcList") or "").strip()
     if raw_lyric and raw_lyric not in ("[]", "{}"):
         return raw_lyric
-    lrclist = payload.get("lrclist") or []
+    lrclist = payload.get("lrclist") or payload.get("lrcList") or payload.get("lrclines") or []
     if not isinstance(lrclist, list):
         return ""
     rows = []
     for item in lrclist:
-        line = str(item.get("lineLyric") or "").strip()
+        line = str(item.get("lineLyric") or item.get("line_lyric") or item.get("text") or "").strip()
         if not line:
             continue
-        time_str = _format_kuwo_time_tag(str(item.get("time") or item.get("lineTime") or ""))
+        time_str = _format_kuwo_time_tag(str(item.get("time") or item.get("lineTime") or item.get("startTime") or ""))
         rows.append(f"[{time_str}]{line}" if time_str else line)
     return "\n".join(rows).strip()
 
@@ -1301,7 +1366,7 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json,text/plain,*/*",
     })
-    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
+    query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_kuwo_query_terms(context)
     title_cf = raw_title.casefold()
     artist_cf = raw_artist.casefold()
     part_cfs = [p.casefold() for p in artist_parts]
@@ -1311,7 +1376,7 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     seen = set()
     errors = []
 
-    for term in query_terms[:6]:
+    for term in query_terms[:10]:
         try:
             resp = session.get(
                 "https://search.kuwo.cn/r.s",
@@ -1319,7 +1384,11 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            items = (resp.json() or {}).get("abslist") or []
+            try:
+                payload = resp.json() or {}
+            except Exception:
+                payload = resp.text
+            items = _extract_kuwo_music_items(payload)
         except Exception as exc:
             errors.append(str(exc))
             continue
@@ -1414,7 +1483,20 @@ def fetch_kuwo_candidate_lyric(candidate: dict) -> str:
         return ""
     try:
         resp = session.get(
-            "http://kuwo.cn/newh5/singles/songinfoandlrc",
+            "https://kuwo.cn/newh5/singles/songinfoandlrc",
+            params={"musicId": rid},
+            timeout=min(request_timeout(), 8),
+        )
+        resp.raise_for_status()
+        data = resp.json() or {}
+        lyric = _extract_kuwo_lyric_text(data)
+        if lyric:
+            return lyric
+    except Exception:
+        pass
+    try:
+        resp = session.get(
+            "https://www.kuwo.cn/openapi/v1/www/lyric/getlyric",
             params={"musicId": rid},
             timeout=min(request_timeout(), 8),
         )
