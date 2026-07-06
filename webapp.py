@@ -2169,10 +2169,13 @@ def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_
     skipped_mixed_rows = []
     missing_song_rows = []
     mtw_available_song_rows = []
+    no_embedded_song_rows = []
     total_missing = 0
     total_skipped_mixed = 0
     total_missing_songs = 0
     total_mtw_available_songs = 0
+    total_embedded_cover_songs = 0
+    total_no_embedded_cover_songs = 0
     mtw_cover_lookup = load_music_tag_web_cover_lookup()
     for current_root, dirnames, filenames in os.walk(music_root):
         dirnames[:] = [d for d in dirnames if d not in skip_dirs]
@@ -2199,8 +2202,21 @@ def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_
                 song_embedded_cover = bool(flags.get("has_embedded_cover"))
                 if song_embedded_cover:
                     embedded_cover_count += 1
+                    total_embedded_cover_songs += 1
                     if first_embedded_audio is None:
                         first_embedded_audio = audio_path
+                else:
+                    total_no_embedded_cover_songs += 1
+                    if len(no_embedded_song_rows) < max(limit * 5, 500):
+                        no_embedded_song_rows.append({
+                            "artist": current.name,
+                            "title": audio_path.stem,
+                            "filename": audio_path.name,
+                            "source_file": str(audio_path),
+                            "folder_path": str(current),
+                            "target_file": str(target_file),
+                            "has_embedded_cover": False,
+                        })
 
             base_row = {
                 "artist": current.name,
@@ -2276,6 +2292,9 @@ def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_
         "missing_album_art_song_rows": missing_song_rows,
         "mtw_album_art_song_count": total_mtw_available_songs,
         "mtw_album_art_song_rows": mtw_available_song_rows,
+        "embedded_album_art_song_count": total_embedded_cover_songs,
+        "no_embedded_album_art_song_count": total_no_embedded_cover_songs,
+        "no_embedded_album_art_song_rows": no_embedded_song_rows,
     }
 
 
@@ -3022,6 +3041,9 @@ def run_album_art_scan_job() -> dict:
         "missing_album_art_song_rows": scan.get("missing_album_art_song_rows", []),
         "mtw_album_art_song_count": scan.get("mtw_album_art_song_count", 0),
         "mtw_album_art_song_rows": scan.get("mtw_album_art_song_rows", []),
+        "embedded_album_art_song_count": scan.get("embedded_album_art_song_count", 0),
+        "no_embedded_album_art_song_count": scan.get("no_embedded_album_art_song_count", 0),
+        "no_embedded_album_art_song_rows": scan.get("no_embedded_album_art_song_rows", []),
     }
     save_scan_cache(ALBUM_ART_SCAN_CACHE_PATH, payload)
     append_job_log(f"[DONE] album art scan missing={payload['missing_album_art_count']} skipped_mixed={payload['skipped_mixed_album_art_count']}")
@@ -3117,8 +3139,8 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             "album_dirs": file_stats.get("album_dirs", len(album_rows)),
             "missing_lyrics": lyric_scan.get("missing_lyrics_count", 0),
             "lyrics_with_count": max(file_stats.get("songs", 0) - lyric_scan.get("missing_lyrics_count", 0), 0),
-            "missing_album_art": album_art_scan.get("missing_album_art_count", 0),
-            "skipped_mixed_album_art": album_art_scan.get("skipped_mixed_album_art_count", 0),
+            "embedded_album_art_songs": album_art_scan.get("embedded_album_art_song_count", 0),
+            "no_embedded_album_art_songs": album_art_scan.get("no_embedded_album_art_song_count", 0),
             "music_tag_cover_candidates": music_tag_cover_plan.get("count", 0),
             "success_artists": success_artist_count,
             "failed_artists": failed_artist_count,
@@ -3154,7 +3176,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             {
                 "title": "扫描缺失专辑图片",
                 "status": "ready",
-                "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个待修复专辑图目录，另有 {album_art_scan.get('skipped_mixed_album_art_count', 0)} 个混合目录被保护性跳过。",
+                "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('embedded_album_art_song_count', 0)} 首歌自带内嵌封面，另有 {album_art_scan.get('no_embedded_album_art_song_count', 0)} 首歌没有内嵌封面。",
                 "action_url": "/?page=music-library&view=album-art#missing-album-art",
                 "action_label": "查看专辑图结果",
             },
@@ -3194,6 +3216,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             "skipped_mixed_album_art_rows": album_art_scan.get("skipped_mixed_album_art_rows", []),
             "missing_album_art_song_rows": album_art_scan.get("missing_album_art_song_rows", []),
             "mtw_album_art_song_rows": album_art_scan.get("mtw_album_art_song_rows", []),
+            "no_embedded_album_art_song_rows": album_art_scan.get("no_embedded_album_art_song_rows", []),
             "music_tag_cover_plan_rows": music_tag_cover_plan.get("rows", []),
             "music_tag_cover_plan_source": music_tag_cover_plan.get("source", ""),
             "lyrics_scan_mode": lyric_scan_mode,
@@ -3304,8 +3327,8 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         "songs": len(unique_song_files),
         "album_dirs": len(unique_album_dirs),
         "missing_lyrics": lyric_scan.get("missing_lyrics_count", 0),
-        "missing_album_art": album_art_scan.get("missing_album_art_count", 0),
-        "skipped_mixed_album_art": album_art_scan.get("skipped_mixed_album_art_count", 0),
+        "embedded_album_art_songs": album_art_scan.get("embedded_album_art_song_count", 0),
+        "no_embedded_album_art_songs": album_art_scan.get("no_embedded_album_art_song_count", 0),
         "music_tag_cover_candidates": music_tag_cover_plan.get("count", 0),
         "success_artists": success_artist_count,
         "failed_artists": failed_artist_count,
@@ -3341,7 +3364,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         {
             "title": "扫描缺失专辑图片",
             "status": "ready",
-            "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('missing_album_art_count', 0)} 个待修复专辑图目录，另有 {album_art_scan.get('skipped_mixed_album_art_count', 0)} 个混合目录被保护性跳过。",
+            "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('embedded_album_art_song_count', 0)} 首歌自带内嵌封面，另有 {album_art_scan.get('no_embedded_album_art_song_count', 0)} 首歌没有内嵌封面。",
             "action_url": "/?page=music-library&view=album-art#missing-album-art",
             "action_label": "查看专辑图结果",
         },
@@ -3382,6 +3405,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
         "skipped_mixed_album_art_rows": album_art_scan.get("skipped_mixed_album_art_rows", []),
         "missing_album_art_song_rows": album_art_scan.get("missing_album_art_song_rows", []),
         "mtw_album_art_song_rows": album_art_scan.get("mtw_album_art_song_rows", []),
+        "no_embedded_album_art_song_rows": album_art_scan.get("no_embedded_album_art_song_rows", []),
         "music_tag_cover_plan_rows": music_tag_cover_plan.get("rows", []),
         "music_tag_cover_plan_source": music_tag_cover_plan.get("source", ""),
         "lyrics_scan_mode": lyric_scan_mode,

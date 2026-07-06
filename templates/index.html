@@ -217,63 +217,18 @@
       <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
     </div>
   </section>
-  <section class="card" id="missing-album-art">
-    <h2>待修复专辑图目录（最近一次后台扫描前 200 条）</h2>
-    <p class="hint">这里只展示真正待修复的目录：混合目录不会算进故障项，会单独列在下方“保护性跳过”区。</p>
-    <ul class="simple-list compact-list">
-    {% for item in data.missing_album_art_rows %}
-      <li>
-        <strong>{{ item.artist }}</strong>
-        {% if item.navidrome_cover_status == 'embedded-available' %}
-        <span class="badge success">可从内嵌生成</span>
-        {% elif item.navidrome_cover_status == 'mtw-available' %}
-        <span class="badge missing">可从 MTW 生成</span>
-        {% elif item.navidrome_cover_status == 'mixed-folder-skip' %}
-        <span class="badge failed">混合目录，已跳过</span>
-        {% else %}
-        <span class="badge failed">需要在线刮图</span>
-        {% endif %}
-        <br>
-        <span class="path-line">{{ item.folder_path }}</span><br>
-        <span class="muted">目标文件：{{ item.target_file }}</span><br>
-        {% if item.navidrome_cover_status == 'embedded-available' %}
-        <span class="muted">该目录当前还没有落盘封面，但目录内至少有一首歌带内嵌封面，可直接提取成 cover.jpg。</span><br>
-        {% elif item.navidrome_cover_status == 'mtw-available' %}
-        <span class="muted">该目录当前还没有落盘封面，但 Music Tag Web 里已有可用专辑图，可直接写成 cover.jpg。</span><br>
-        {% if item.mtw_album_name %}<span class="muted">MTW 专辑：{{ item.mtw_album_name }}</span><br>{% endif %}
-        {% elif item.navidrome_cover_status == 'mixed-folder-skip' %}
-        <span class="muted">该目录被识别为混合歌曲目录，已跳过目录级专辑图自动处理，避免把某一首歌或某一张专辑的封面错误写成整个目录共用的 cover.jpg。</span><br>
-        {% if item.mtw_folder_album_name_count %}<span class="muted">识别到的 MTW 专辑数：{{ item.mtw_folder_album_name_count }}</span><br>{% endif %}
-        {% if item.audio_file_count %}<span class="muted">目录内音频数：{{ item.audio_file_count }}</span><br>{% endif %}
-        {% if item.embedded_cover_count %}<span class="muted">带内嵌封面的音频数：{{ item.embedded_cover_count }}</span><br>{% endif %}
-        {% else %}
-        <span class="muted">该目录当前既没有落盘封面，也没发现可直接复用的内嵌封面或 MTW 专辑图，需要在线刮图。</span><br>
-        {% endif %}
-        {% if item.navidrome_cover_status != 'mixed-folder-skip' %}
-        <button type="button" class="btn btn-small" onclick='return submitTargetJob("album-art-online-write", {{ {"audio_path": item.source_file, "folder_path": item.folder_path}|tojson }})'>在线刮这个专辑图</button>
-        {% endif %}
-      </li>
-    {% else %}
-      <li>没有发现缺 Navidrome 专辑图目录</li>
-    {% endfor %}
-    </ul>
+  <section class="grid stats">
+    <div class="card success"><div class="label">有内嵌封面</div><div class="value">{{ data.stats.embedded_album_art_songs or 0 }}</div></div>
+    <div class="card danger"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
   </section>
-
-  <section class="card" id="skipped-mixed-album-art">
-    <h2>混合目录保护性跳过</h2>
-    <p class="hint">这些目录被识别为混合歌曲目录。为避免把某一首歌/某一张专辑的封面错误写成整个目录共用的 cover.jpg，系统已自动跳过，不属于故障项。</p>
+  <section class="card" id="missing-album-art">
+    <h2>专辑图歌曲内嵌封面统计</h2>
+    <p class="hint">这个板块现在只统计歌曲维度的内嵌封面情况：多少首歌自带内嵌封面，多少首歌没有内嵌封面。</p>
     <ul class="simple-list compact-list">
-    {% for item in data.skipped_mixed_album_art_rows %}
-      <li>
-        <strong>{{ item.artist }}</strong>
-        <span class="badge failed">混合目录，已跳过</span><br>
-        <span class="path-line">{{ item.folder_path }}</span><br>
-        {% if item.mtw_folder_album_name_count %}<span class="muted">识别到的 MTW 专辑数：{{ item.mtw_folder_album_name_count }}</span><br>{% endif %}
-        {% if item.audio_file_count %}<span class="muted">目录内音频数：{{ item.audio_file_count }}</span><br>{% endif %}
-        {% if item.embedded_cover_count %}<span class="muted">带内嵌封面的音频数：{{ item.embedded_cover_count }}</span><br>{% endif %}
-      </li>
+    {% for item in data.no_embedded_album_art_song_rows %}
+      <li>{{ item.title }}</li>
     {% else %}
-      <li>没有混合目录被保护性跳过</li>
+      <li>没有发现无内嵌封面的歌曲</li>
     {% endfor %}
     </ul>
   </section>
