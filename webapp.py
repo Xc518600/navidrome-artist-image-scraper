@@ -3993,6 +3993,26 @@ def api_song_cover():
                             return response
     except Exception:
         pass
+
+    if audio_path.suffix.lower() == ".mp3":
+        try:
+            tags = ID3(str(audio_path))
+            for key in tags.keys():
+                if not str(key).upper().startswith("APIC"):
+                    continue
+                value = tags.get(key)
+                data = getattr(value, "data", None)
+                if not data:
+                    continue
+                mime = getattr(value, "mime", None) or "image/jpeg"
+                response = Response(data, mimetype=mime)
+                response.headers["Content-Type"] = mime
+                response.headers["Content-Disposition"] = 'inline; filename="cover.jpg"'
+                response.headers["Cache-Control"] = "public, max-age=86400"
+                response.headers["Content-Length"] = str(len(data))
+                return response
+        except Exception:
+            pass
     abort(404)
 
 

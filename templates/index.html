@@ -189,13 +189,6 @@
       {% for item in data.missing_lyrics_rows %}
         <li>
           <strong>{{ item.title or item.artist }}</strong><br>
-          <span class="muted">文件名：{{ item.filename }}</span><br>
-          <span class="muted">目录：{{ item.folder_path }}</span><br>
-          <span class="path-line">完整路径：{{ item.source_file }}</span><br>
-          <span class="muted">手动搜索建议：{{ item.search_hint }}</span><br>
-          {% if item.auto_attempted_at %}<span class="muted">自动刮削时间：{{ item.auto_attempted_at }}</span><br>{% endif %}
-          {% if item.auto_attempt_error %}<span class="muted">失败原因：{{ item.auto_attempt_error }}</span><br>{% endif %}
-          <span class="muted">{{ '已自动刮削过一次但仍失败，可在这里手动重试' if lyrics_scan_mode else '已自动刮削过一次但仍失败，可在这里手动重试' }}</span><br>
           <button type="button" class="btn btn-small" onclick='return submitTargetJob("lyrics-online-write", {{ {"audio_path": item.source_file}|tojson }})'>手动刮削</button>
         </li>
       {% else %}
