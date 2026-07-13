@@ -365,8 +365,8 @@ function showHomeBootstrapIndicator(label = '扫描中') {
   if (!node) return;
   const labelNode = node.querySelector('.home-bootstrap-indicator-label');
   const statusNode = node.querySelector('.home-bootstrap-indicator-status');
-  if (labelNode) labelNode.textContent = label;
-  const stageHint = label && label !== '扫描中' ? `当前阶段：${label}` : '正在依次执行：歌词扫描 → 专辑图扫描 → 歌手头像刮削';
+  if (labelNode) labelNode.textContent = '扫描中';
+  const stageHint = label && label !== '扫描中' ? `当前阶段：${label}` : '正在依次执行：歌手头像扫描 → 歌词扫描 → 专辑图扫描';
   if (statusNode) statusNode.textContent = `${stageHint}，请稍等…`;
   node.style.display = 'flex';
 }
@@ -375,7 +375,7 @@ function formatBootstrapStageLabel(stage) {
   const value = String(stage || '').trim();
   if (value === 'lyrics-scan') return '歌词扫描';
   if (value === 'album-art-scan') return '专辑图扫描';
-  if (value === 'scrape') return '歌手头像刮削';
+  if (value === 'scrape') return '歌手头像扫描';
   return '扫描中';
 }
 
@@ -1155,6 +1155,7 @@ const autoLyricsScanWait = false;
 const autoArtistScrapeWait = false;
 const autoHomeBootstrapWait = {{ 'true' if auto_home_bootstrap_wait else 'false' }};
 const HOME_BOOTSTRAP_SESSION_KEY = 'navidrome-artist-image-scraper:home-bootstrap-ran';
+const HOME_BOOTSTRAP_STAGE_MIN_MS = 1800;
 
 async function autoRefreshLyricsSection() {
   if (!autoLyricsScanWait) return;
@@ -1193,11 +1194,28 @@ async function autoBootstrapHomePage() {
 
   showHomeBootstrapIndicator('扫描中');
   const startedAt = Date.now();
+  let shownStage = '';
+  let shownStageSince = 0;
   while (Date.now() - startedAt < 600000) {
     const res = await fetch('/api/job');
     const data = await res.json();
     const bootstrap = data.home_bootstrap || {};
-    showHomeBootstrapIndicator(formatBootstrapStageLabel(bootstrap.stage));
+    const stageLabel = formatBootstrapStageLabel(bootstrap.stage);
+    const now = Date.now();
+    if (!shownStage) {
+      shownStage = stageLabel;
+      shownStageSince = now;
+      showHomeBootstrapIndicator(stageLabel);
+    } else if (stageLabel !== shownStage) {
+      const elapsed = now - shownStageSince;
+      if (elapsed >= HOME_BOOTSTRAP_STAGE_MIN_MS) {
+        shownStage = stageLabel;
+        shownStageSince = now;
+        showHomeBootstrapIndicator(stageLabel);
+      }
+    } else {
+      showHomeBootstrapIndicator(stageLabel);
+    }
     if (bootstrap.error) {
       hideHomeBootstrapIndicator();
       try { window.sessionStorage.removeItem(HOME_BOOTSTRAP_SESSION_KEY); } catch (e) {}
@@ -1205,6 +1223,10 @@ async function autoBootstrapHomePage() {
       return;
     }
     if (bootstrap.done && !bootstrap.running) {
+      const elapsed = Date.now() - shownStageSince;
+      if (shownStage && elapsed < HOME_BOOTSTRAP_STAGE_MIN_MS) {
+        await new Promise(r => setTimeout(r, HOME_BOOTSTRAP_STAGE_MIN_MS - elapsed));
+      }
       hideHomeBootstrapIndicator();
       try { window.sessionStorage.setItem(HOME_BOOTSTRAP_SESSION_KEY, '1'); } catch (e) {}
       return;

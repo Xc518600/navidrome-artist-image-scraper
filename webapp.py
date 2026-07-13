@@ -3939,7 +3939,7 @@ def ensure_home_bootstrap_started() -> bool:
         return False
     home_bootstrap_state.update({
         "running": True,
-        "stage": "lyrics-scan",
+        "stage": "scrape",
         "started_at": int(time.time()),
         "finished_at": None,
         "done": False,
@@ -3949,14 +3949,24 @@ def ensure_home_bootstrap_started() -> bool:
     def worker():
         try:
             deadline = time.time() + 900
+            launched_scrape = False
             launched_lyrics = False
             launched_album_art = False
-            launched_scrape = False
             while time.time() < deadline:
-                if not launched_lyrics:
-                    if not job_state.get("running") and run_job("lyrics-scan"):
-                        launched_lyrics = True
-                        home_bootstrap_state["stage"] = "lyrics-scan"
+                if not launched_scrape:
+                    if not job_state.get("running") and run_job("scrape"):
+                        launched_scrape = True
+                        home_bootstrap_state["stage"] = "scrape"
+                elif launched_scrape and not launched_lyrics:
+                    if not job_state.get("running"):
+                        if job_state.get("mode") == "scrape":
+                            if run_job("lyrics-scan"):
+                                launched_lyrics = True
+                                home_bootstrap_state["stage"] = "lyrics-scan"
+                        elif job_state.get("mode") is None:
+                            if run_job("lyrics-scan"):
+                                launched_lyrics = True
+                                home_bootstrap_state["stage"] = "lyrics-scan"
                 elif launched_lyrics and not launched_album_art:
                     if not job_state.get("running"):
                         if job_state.get("mode") == "lyrics-scan":
@@ -3967,18 +3977,8 @@ def ensure_home_bootstrap_started() -> bool:
                             if run_job("album-art-scan"):
                                 launched_album_art = True
                                 home_bootstrap_state["stage"] = "album-art-scan"
-                elif launched_album_art and not launched_scrape:
-                    if not job_state.get("running"):
-                        if job_state.get("mode") == "album-art-scan":
-                            if run_job("scrape"):
-                                launched_scrape = True
-                                home_bootstrap_state["stage"] = "scrape"
-                        elif job_state.get("mode") is None:
-                            if run_job("scrape"):
-                                launched_scrape = True
-                                home_bootstrap_state["stage"] = "scrape"
-                elif launched_scrape:
-                    if not job_state.get("running") and job_state.get("mode") == "scrape":
+                elif launched_album_art:
+                    if not job_state.get("running") and job_state.get("mode") == "album-art-scan":
                         home_bootstrap_state["done"] = True
                         break
                 time.sleep(0.5)
