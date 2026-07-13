@@ -2672,6 +2672,7 @@ def collect_missing_album_art_rows(music_root: Path, extensions: set[str], skip_
                             "folder_path": str(current),
                             "target_file": str(target_file),
                             "has_embedded_cover": False,
+                            "mixed_folder": mtw_is_mixed_folder,
                         })
 
             base_row = {

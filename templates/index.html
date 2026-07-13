@@ -262,11 +262,18 @@
     <div class="card danger"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
   </section>
   <section class="card" id="missing-album-art">
-    <h2>专辑图歌曲内嵌封面统计</h2>
-    <p class="hint">这个板块现在只统计歌曲维度的内嵌封面情况：多少首歌自带内嵌封面，多少首歌没有内嵌封面。</p>
+    <h2>无内嵌封面歌曲（{{ data.no_embedded_album_art_song_rows|length }} 首）</h2>
+    <p class="hint">这里按歌曲维度直接显示没有内嵌封面的音频。即使所在目录属于 mixed folder、不会进入目录级 cover.jpg 自动写入列表，也会在这里单独列出来。</p>
     <ul class="simple-list compact-list">
     {% for item in data.no_embedded_album_art_song_rows %}
-      <li>{{ item.title }}</li>
+      <li>
+        <strong>{{ item.title }}</strong><br>
+        <span class="muted">路径：{{ item.source_file }}</span><br>
+        {% if item.mixed_folder %}
+        <span class="muted">状态：所在目录是 mixed folder，目录级专辑图任务会跳过，但这首歌本身确实没有内嵌封面。</span><br>
+        {% endif %}
+        <button type="button" class="btn btn-small" onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }})'>直接刮削这首歌的内嵌封面</button>
+      </li>
     {% else %}
       <li>没有发现无内嵌封面的歌曲</li>
     {% endfor %}
