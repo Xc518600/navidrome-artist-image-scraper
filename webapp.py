@@ -3950,15 +3950,26 @@ def ensure_home_bootstrap_started() -> bool:
         try:
             deadline = time.time() + 900
             launched_lyrics = False
+            launched_album_art = False
             launched_scrape = False
             while time.time() < deadline:
                 if not launched_lyrics:
                     if not job_state.get("running") and run_job("lyrics-scan"):
                         launched_lyrics = True
                         home_bootstrap_state["stage"] = "lyrics-scan"
-                elif launched_lyrics and not launched_scrape:
+                elif launched_lyrics and not launched_album_art:
                     if not job_state.get("running"):
                         if job_state.get("mode") == "lyrics-scan":
+                            if run_job("album-art-scan"):
+                                launched_album_art = True
+                                home_bootstrap_state["stage"] = "album-art-scan"
+                        elif job_state.get("mode") is None:
+                            if run_job("album-art-scan"):
+                                launched_album_art = True
+                                home_bootstrap_state["stage"] = "album-art-scan"
+                elif launched_album_art and not launched_scrape:
+                    if not job_state.get("running"):
+                        if job_state.get("mode") == "album-art-scan":
                             if run_job("scrape"):
                                 launched_scrape = True
                                 home_bootstrap_state["stage"] = "scrape"
