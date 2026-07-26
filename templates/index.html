@@ -300,6 +300,7 @@ async function waitForJobFinish(options = {}) {
     expectTargetAudio = null,
     expectTargetFolder = null,
     expectTargetArtist = null,
+    resolveOnManualCandidates = false,
   } = options;
   const startedAt = Date.now();
   let lastJob = null;
@@ -316,8 +317,15 @@ async function waitForJobFinish(options = {}) {
       const folderOk = !expectTargetFolder || target.folder_path === expectTargetFolder;
       const artistOk = !expectTargetArtist || target.artist === expectTargetArtist;
       const matches = modeOk && audioOk && folderOk && artistOk;
+      const manualCandidates = job?.manual_candidates || {};
+      const hasExpectedManualCandidates = !!(
+        resolveOnManualCandidates
+        && expectTargetAudio
+        && Array.isArray(manualCandidates?.[expectTargetAudio])
+        && manualCandidates[expectTargetAudio].length
+      );
 
-      if (matches && job.running === false && job.mode) {
+      if (matches && (hasExpectedManualCandidates || (job.running === false && job.mode))) {
         return job;
       }
     } catch (e) {}
@@ -331,6 +339,9 @@ function summarizeJobResult(job, fallbackText = '任务已结束') {
   const text = log.join('\n');
   const returncode = job?.returncode;
   if (returncode === 0) {
+    if (job?.manual_candidates && Object.keys(job.manual_candidates).length) {
+      return 'ℹ️ 已找到可手动选择的候选结果';
+    }
     if (text.includes('[WRITE] embedded cover ->')) {
       return '✅ 歌曲图片刮削成功，已写入内嵌封面';
     }
@@ -1193,6 +1204,7 @@ async function submitTargetJob(mode, target, options = {}) {
     const job = await waitForJobFinish({
       expectMode: mode,
       expectTargetAudio: target?.audio_path || null,
+      resolveOnManualCandidates: true,
     });
     const manualCandidates = job?.manual_candidates || {};
     const candidates = manualCandidates?.[target?.audio_path || ''];
@@ -1230,6 +1242,7 @@ async function submitTargetJob(mode, target, options = {}) {
     const job = await waitForJobFinish({
       expectMode: mode,
       expectTargetAudio: target?.audio_path || null,
+      resolveOnManualCandidates: true,
     });
     const manualCandidates = job?.manual_candidates || {};
     const candidates = manualCandidates?.[target?.audio_path || ''];
