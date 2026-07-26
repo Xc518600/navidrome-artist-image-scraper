@@ -94,6 +94,15 @@
         </div>
       </section>
 
+      <section class="card" id="settings-song-cover-candidate-panel" style="display:none;">
+        <div class="settings-panel-title-row">
+          <h3>封面候选结果</h3>
+          <span class="settings-badge settings-badge-secondary">手动选择</span>
+        </div>
+        <p class="hint" id="settings-song-cover-candidate-title"></p>
+        <ul class="simple-list compact-list" id="settings-song-cover-candidate-list"></ul>
+      </section>
+
       <section class="card" id="settings-lyrics-candidate-panel" style="display:none;">
         <div class="settings-panel-title-row">
           <h3>歌词候选结果</h3>
@@ -719,6 +728,109 @@ async function scrapeCurrentSongCover() {
   return submitTargetJob('song-cover-online-write', { audio_path: song.source_file }, { suppressReload: false, suppressSuccessBanner: false, renderToSettings: true, progressButtonId: 'song-cover-scrape-button' });
 }
 
+function renderSettingsSongCoverCandidates(audioPath, candidates) {
+  const panel = document.getElementById('settings-song-cover-candidate-panel');
+  const title = document.getElementById('settings-song-cover-candidate-title');
+  const list = document.getElementById('settings-song-cover-candidate-list');
+  if (!panel || !title || !list) return;
+  list.innerHTML = '';
+  if (!Array.isArray(candidates) || !candidates.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  title.textContent = `自动刮削没命中，你可以手动选一张内嵌封面：${audioPath}`;
+  for (const item of candidates) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '未知标题';
+    li.appendChild(strong);
+    li.appendChild(document.createElement('br'));
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `歌手：${item.artist || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source_label || item.source || '-'} ｜ 分数：${item.score ?? 0}`;
+    li.appendChild(meta);
+    li.appendChild(document.createElement('br'));
+    if (item.cover_url) {
+      const link = document.createElement('a');
+      link.href = item.cover_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'muted';
+      link.textContent = '预览封面';
+      li.appendChild(link);
+      li.appendChild(document.createElement('br'));
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-small';
+    button.textContent = '选这张封面写入';
+    button.onclick = () => submitSongCoverCandidateWrite(audioPath, item.token);
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+  panel.style.display = 'block';
+}
+
+async function submitSongCoverCandidateWrite(audioPath, candidateToken) {
+  const res = await fetch('/api/job', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode: 'song-cover-candidate-write', overwrite: true, target: {audio_path: audioPath, candidate_token: candidateToken}})
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.ok) {
+    const message = data?.error || '候选封面写入失败';
+    showJobBanner(message, 'error');
+    return false;
+  }
+  showJobBanner(`✅ 已写入内嵌封面：${data.title || ''}（来源：${data.source_label || data.source || '未知来源'}）`, 'info');
+  reloadSettingsWithSelectedSong({ delayMs: 500 });
+  return false;
+}
+
+function renderSongCoverCandidates(audioPath, candidates) {
+  const panel = document.getElementById('song-cover-candidate-panel');
+  const title = document.getElementById('song-cover-candidate-title');
+  const list = document.getElementById('song-cover-candidate-list');
+  if (!panel || !title || !list) return;
+  list.innerHTML = '';
+  if (!Array.isArray(candidates) || !candidates.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  title.textContent = `这首歌自动匹配失败，你可以手动选择候选封面：${audioPath}`;
+  for (const item of candidates) {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = item.title || '未知标题';
+    li.appendChild(strong);
+    li.appendChild(document.createElement('br'));
+    const meta = document.createElement('span');
+    meta.className = 'muted';
+    meta.textContent = `歌手：${item.artist || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source_label || item.source || '-'} ｜ 分数：${item.score ?? 0}`;
+    li.appendChild(meta);
+    li.appendChild(document.createElement('br'));
+    if (item.cover_url) {
+      const link = document.createElement('a');
+      link.href = item.cover_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'muted';
+      link.textContent = '预览封面';
+      li.appendChild(link);
+      li.appendChild(document.createElement('br'));
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-small';
+    button.textContent = '选这张封面写入';
+    button.onclick = () => submitSongCoverCandidateWrite(audioPath, item.token);
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+  panel.style.display = 'block';
+}
+
 function renderLyricsCandidates(audioPath, candidates) {
   const panel = document.getElementById('lyrics-candidate-panel');
   const title = document.getElementById('lyrics-candidate-title');
@@ -1119,6 +1231,18 @@ async function submitTargetJob(mode, target, options = {}) {
       expectMode: mode,
       expectTargetAudio: target?.audio_path || null,
     });
+    const manualCandidates = job?.manual_candidates || {};
+    const candidates = manualCandidates?.[target?.audio_path || ''];
+    if (Array.isArray(candidates) && candidates.length) {
+      showJobBanner(`已找到 ${candidates.length} 条封面候选，请手动选择。`, 'info');
+      if (renderToSettings) {
+        renderSettingsSongCoverCandidates(target?.audio_path || '', candidates);
+      } else {
+        renderSongCoverCandidates(target?.audio_path || '', candidates);
+      }
+      setButtonProgress(progressButton, false);
+      return false;
+    }
     const resultMessage = summarizeJobResult(job, '这首歌内嵌封面刮削任务已结束');
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
     setButtonProgress(progressButton, false);

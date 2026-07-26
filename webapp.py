@@ -72,6 +72,7 @@ MIXED_FOLDER_EXACT_PATHS = {
 app = Flask(__name__)
 job_lock = threading.Lock()
 lyrics_candidate_store: dict[str, dict] = {}
+song_cover_candidate_store: dict[str, dict] = {}
 job_state = {
     "running": False,
     "mode": None,
@@ -3111,6 +3112,11 @@ def write_online_song_cover(overwrite: bool = False, only_audio_path: Optional[s
             fetch_errors.append(f"{source_name}:{candidate.get('error')}")
             append_job_log(f"[WARN] embedded cover fallback -> {audio_path} :: {source_name} {candidate.get('error')}")
         if not fetched:
+            candidate_rows = build_song_cover_candidates(audio_path)
+            if candidate_rows:
+                result.setdefault('manual_candidates', {})[str(audio_path)] = candidate_rows
+                append_job_log(f"[INFO] song cover candidates available -> {audio_path} :: {len(candidate_rows)}")
+                continue
             result['failed'] += 1
             append_job_log(f"[FAIL] embedded cover fetch -> {audio_path} :: {' | '.join(fetch_errors) or 'all-providers-failed'}")
             continue
@@ -3123,6 +3129,7 @@ def write_online_song_cover(overwrite: bool = False, only_audio_path: Optional[s
         )
         if ok:
             clear_audio_metadata_flags_cache()
+            remove_song_from_album_art_scan_cache(audio_path)
             result['written'] += 1
             append_job_log(f"[WRITE] embedded cover -> {audio_path} :: {fetched.get('source')}")
             continue
@@ -4063,6 +4070,10 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
                 append_job_log("[INFO] starting online embedded cover scrape job")
                 only_audio_path = (target or {}).get("audio_path") if target else None
                 result = write_online_song_cover(overwrite=overwrite, only_audio_path=only_audio_path)
+                if isinstance(result, dict):
+                    for key, value in result.items():
+                        if key not in {"ok", "log"}:
+                            job_state[key] = value
                 job_state["returncode"] = 0 if result.get("ok") else 1
                 return
 
@@ -4485,6 +4496,109 @@ def api_song_cover():
     abort(404)
 
 
+def build_song_cover_candidates(audio_path: Path, max_candidates: int = 12) -> list[dict]:
+    context = track_search_context(audio_path)
+    title = str(context.get("title") or "").strip()
+    artist = str(context.get("artist") or "").strip()
+    filename_candidates = context.get("filename_candidates") or []
+
+    search_terms: list[str] = []
+    seen_terms: set[str] = set()
+
+    def add_term(term: str):
+        value = str(term or "").strip()
+        if value and value not in seen_terms:
+            seen_terms.add(value)
+            search_terms.append(value)
+
+    add_term(f"{artist} {title}")
+    add_term(f"{title} {artist}")
+    if title:
+        add_term(title)
+    for cand in filename_candidates:
+        cand_artist = str(cand.get("artist") or "").strip()
+        cand_title = str(cand.get("title") or "").strip()
+        add_term(f"{cand_artist} {cand_title}")
+        add_term(f"{cand_title} {cand_artist}")
+
+    results: list[dict] = []
+    seen_ids: set[str] = set()
+    for term in search_terms[:6]:
+        search_result = search_music_by_keyword(term, limit=12)
+        for item in search_result.get("results") or []:
+            item_id = str(item.get("id") or "").strip()
+            if not item_id or item_id in seen_ids:
+                continue
+            item_title = str(item.get("title") or "").strip()
+            item_artist = str(item.get("artist") or "").strip()
+            if title and is_lyric_title_mismatch_guard(title, item_title):
+                continue
+            score = int(item.get("score") or 0)
+            if title and item_title:
+                if item_title.casefold() == title.casefold():
+                    score += 40
+                elif item_title.casefold() in title.casefold() or title.casefold() in item_title.casefold():
+                    score += 18
+            if artist and item_artist:
+                item_artist_cf = item_artist.casefold()
+                artist_cf = artist.casefold()
+                if item_artist_cf == artist_cf:
+                    score += 25
+                elif item_artist_cf in artist_cf or artist_cf in item_artist_cf:
+                    score += 12
+            token = safe_candidate_token(audio_path, str(item.get("source") or "unknown"), item_id)
+            payload = dict(item)
+            payload["score"] = score
+            payload["token"] = token
+            payload["source_file"] = str(audio_path.resolve())
+            results.append(payload)
+            song_cover_candidate_store[token] = {
+                "audio_path": str(audio_path.resolve()),
+                "source": str(item.get("source") or "").strip(),
+                "source_label": str(item.get("source_label") or item.get("source") or "未知来源").strip(),
+                "title": item_title,
+                "artist": item_artist,
+                "album": str(item.get("album") or "").strip(),
+                "cover_url": str(item.get("cover_url") or "").strip(),
+                "external_url": str(item.get("external_url") or "").strip(),
+            }
+            seen_ids.add(item_id)
+    results.sort(key=lambda item: (-int(item.get("score") or 0), str(item.get("source") or ""), str(item.get("title") or "")))
+    return results[:max_candidates]
+
+
+def write_selected_song_cover_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = True) -> dict:
+    audio_path = Path(audio_path_str).resolve()
+    payload = song_cover_candidate_store.get(candidate_token)
+    if not payload:
+        return {"ok": False, "error": "candidate-not-found"}
+    if str(audio_path) != str(payload.get("audio_path") or ""):
+        return {"ok": False, "error": "candidate-audio-mismatch"}
+    cover_url = str(payload.get("cover_url") or "").strip()
+    if not cover_url:
+        return {"ok": False, "error": "candidate-cover-url-missing"}
+    try:
+        image_bytes, content_type = _download_image_bytes(cover_url)
+    except Exception as exc:
+        return {"ok": False, "error": f"candidate-image-download-failed: {exc}"}
+    ok, reason = write_cover_to_audio_file(audio_path, image_bytes, mime_type=content_type, overwrite=overwrite)
+    if ok:
+        clear_audio_metadata_flags_cache()
+        remove_song_from_album_art_scan_cache(audio_path)
+        append_job_log(f"[WRITE] selected {payload.get('source')} embedded cover -> {audio_path}")
+        return {
+            "ok": True,
+            "written": True,
+            "source": payload.get("source"),
+            "source_label": payload.get("source_label"),
+            "title": payload.get("title"),
+            "artist": payload.get("artist"),
+            "album": payload.get("album"),
+            "cover_url": cover_url,
+        }
+    return {"ok": False, "error": reason, "source": payload.get("source")}
+
+
 def write_selected_lyric_candidate(audio_path_str: str, candidate_token: str, overwrite: bool = True) -> dict:
     audio_path = Path(audio_path_str).resolve()
     payload = lyrics_candidate_store.get(candidate_token)
@@ -4601,6 +4715,14 @@ def api_job():
         if not audio_path or not candidate_token:
             return jsonify({"ok": False, "error": "missing-audio-or-candidate"}), 400
         result = write_selected_lyric_candidate(audio_path, candidate_token, overwrite=overwrite)
+        return jsonify(result), (200 if result.get("ok") else 400)
+    if mode == "song-cover-candidate-write":
+        target = target or {}
+        audio_path = str(target.get("audio_path") or "").strip()
+        candidate_token = str(target.get("candidate_token") or "").strip()
+        if not audio_path or not candidate_token:
+            return jsonify({"ok": False, "error": "missing-audio-or-candidate"}), 400
+        result = write_selected_song_cover_candidate(audio_path, candidate_token, overwrite=overwrite)
         return jsonify(result), (200 if result.get("ok") else 400)
     if mode not in {"dry-run", "write", "scrape", "artist-online-write", "artist-scan-count", "lyrics-scan", "album-art-scan", "album-art-write", "album-art-write-overwrite", "lyrics-write", "lyrics-write-overwrite", "lyrics-online-write", "lyrics-online-write-overwrite", "album-art-online-write", "album-art-online-write-overwrite", "song-cover-online-write", "song-cover-online-write-overwrite"}:
         return jsonify({"ok": False, "error": "invalid mode"}), 400
