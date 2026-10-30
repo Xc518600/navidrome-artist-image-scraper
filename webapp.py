@@ -4754,4 +4754,12 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(host=HOST, port=PORT, debug=DEBUG)
+    if DEBUG:
+        # 调试模式保留 Flask 开发服务器（支持热重载）
+        app.run(host=HOST, port=PORT, debug=DEBUG)
+    else:
+        # 生产环境使用 waitress（纯 Python WSGI 服务器，多线程稳定常驻）
+        from waitress import serve
+        threads = int(os.environ.get("WEB_THREADS", "8"))
+        print(f"serving on {HOST}:{PORT} (waitress, threads={threads})", flush=True)
+        serve(app, host=HOST, port=PORT, threads=threads)
