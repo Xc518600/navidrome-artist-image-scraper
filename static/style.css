@@ -187,6 +187,7 @@ h3 { font-size: 14px; font-weight: 600; }
   font-size: 13px;
   font-weight: 550;
   line-height: 1.2;
+  white-space: nowrap;
   min-height: 38px;
   color: var(--text);
   background: var(--btn-bg);
