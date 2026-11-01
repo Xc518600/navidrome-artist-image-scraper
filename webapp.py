@@ -490,7 +490,7 @@ def build_lyric_candidates(audio_path: Path, max_candidates: int = 8, store_audi
 
     title_cf = title.casefold()
     artist_cf = artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
+    part_cfs = [_cf_text(p) for p in artist_parts]
 
     try:
         lrclib_queries = []
@@ -782,7 +782,7 @@ def search_lrclib_lyrics(audio_path_str: str) -> dict:
     errors = []
     title_cf = title.casefold()
     artist_cf = artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
+    part_cfs = [_cf_text(p) for p in artist_parts]
 
     def score_lrclib_item(params: dict, item: dict):
         plain = (item.get("plainLyrics") or "").strip()
@@ -874,15 +874,15 @@ def search_netease_lyrics(audio_path_str: str) -> dict:
 
     title_cf = title.casefold()
     artist_cf = artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
+    part_cfs = [_cf_text(p) for p in artist_parts]
     preferred_title = title
     preferred_artist = artist
     if filename_candidates:
         top = filename_candidates[0]
         preferred_title = str(top.get('title') or preferred_title).strip() or preferred_title
         preferred_artist = str(top.get('artist') or preferred_artist).strip() or preferred_artist
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    preferred_title_cf = _cf_text(preferred_title)
+    preferred_artist_cf = _cf_text(preferred_artist)
     best = None
     near_matches = []
     errors = []
@@ -989,6 +989,65 @@ def search_netease_lyrics(audio_path_str: str) -> dict:
     }
 
 
+try:
+    from zhconv import convert as _zhconv_convert
+except Exception:  # zhconv 缺失时退化为普通 casefold
+    _zhconv_convert = None
+
+
+def _cf_text(value: str) -> str:
+    """匹配归一化：casefold + 繁体转简体（借鉴 music-tag-web match_score）"""
+    text = str(value or "").strip().casefold()
+    if _zhconv_convert is not None and text:
+        try:
+            text = _zhconv_convert(text, "zh-cn")
+        except Exception:
+            pass
+    return text
+
+
+def _kuwo_headers() -> dict:
+    """酷我请求头：随机 token + sha1/md5 Cross，绕过 Hm 风控（借鉴 music-tag-web KuwoClient）"""
+    import hashlib
+    import random
+    token = "".join(random.choices("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", k=32))
+    cross = hashlib.md5(hashlib.sha1(token.encode("utf-8")).hexdigest().encode("utf-8")).hexdigest()
+    return {
+        "Referer": "https://www.kuwo.cn/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "Accept": "application/json,text/plain,*/*",
+        "Cross": cross,
+        "Cookie": f"Hm_token={token}",
+    }
+
+
+def _kuwo_query_value(term: str) -> str:
+    """酷我 r.s 老接口要求 GBK 编码查询词，UTF-8 会被判 0 命中；GBK 编不了的字符回退 UTF-8"""
+    from urllib.parse import quote
+    text = str(term or "").strip()
+    if not text:
+        return ""
+    try:
+        return quote(text.encode("gbk"))
+    except UnicodeEncodeError:
+        return quote(text)
+
+
+def _kuwo_parse_search_payload(resp):
+    """酷我 r.s 的 rformat=json 返回 GBK 编码的单引号 dict 字面量，标准 json 解不了"""
+    import ast as _ast
+    resp.encoding = "gbk"
+    text = resp.text or ""
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    try:
+        return _ast.literal_eval(text)
+    except Exception:
+        return {}
+
+
 def _has_lyric_variant_marker(title: str) -> bool:
     text = str(title or "").strip().casefold()
     if not text:
@@ -1011,14 +1070,14 @@ def _strip_year_suffix(title: str) -> str:
 def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candidate_artists: list[str], preferred_title: str = "", preferred_artist: str = "") -> bool:
     source_title = str(preferred_title or title or "").strip()
     source_artist = str(preferred_artist or artist or "").strip()
-    source_title_cf = source_title.casefold()
-    source_artist_cf = source_artist.casefold()
-    candidate_title_cf = str(candidate_title or "").strip().casefold()
-    candidate_artists_cf = [str(a or "").strip().casefold() for a in (candidate_artists or []) if str(a or "").strip()]
+    source_title_cf = _cf_text(source_title)
+    source_artist_cf = _cf_text(source_artist)
+    candidate_title_cf = _cf_text(str(candidate_title or "").strip())
+    candidate_artists_cf = [_cf_text(str(a or "").strip()) for a in (candidate_artists or []) if str(a or "").strip()]
     base_source_title = _strip_year_suffix(source_title)
     base_candidate_title = _strip_year_suffix(candidate_title)
-    base_source_title_cf = base_source_title.casefold()
-    base_candidate_title_cf = base_candidate_title.casefold()
+    base_source_title_cf = _cf_text(base_source_title)
+    base_candidate_title_cf = _cf_text(base_candidate_title)
 
     if not source_title_cf or not source_artist_cf or not candidate_title_cf or not candidate_artists_cf:
         return False
@@ -1036,8 +1095,8 @@ def _is_strict_lyric_match(title: str, artist: str, candidate_title: str, candid
 
 
 def _score_song_candidate(title_cf: str, artist_cf: str, part_cfs: list[str], preferred_title_cf: str, preferred_artist_cf: str, song_name: str, artists: list[str], boost_exact_combo: bool = False) -> int:
-    song_name_cf = song_name.casefold().strip()
-    artists_cf = [a.casefold().strip() for a in artists if a]
+    song_name_cf = _cf_text(song_name)
+    artists_cf = [_cf_text(a) for a in artists if a]
     score = 0
     if song_name_cf == preferred_title_cf:
         score += 80
@@ -1062,6 +1121,9 @@ def _score_song_candidate(title_cf: str, artist_cf: str, part_cfs: list[str], pr
         score += 28
     elif any(a in artist_cf or artist_cf in a for a in artists_cf):
         score += 20
+    elif artist_cf or preferred_artist_cf:
+        # 艺人惩罚项：本地有艺人名但候选完全对不上，强力降权防错配（借鉴 music-tag-web -2 惩罚）
+        score -= 25
 
     if boost_exact_combo and song_name_cf == preferred_title_cf and any(a == preferred_artist_cf for a in artists_cf):
         score += 25
@@ -1182,11 +1244,11 @@ def search_qq_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
 
     session = build_http_session()
     query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
-    title_cf = raw_title.casefold()
-    artist_cf = raw_artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    title_cf = _cf_text(raw_title)
+    artist_cf = _cf_text(raw_artist)
+    part_cfs = [_cf_text(p) for p in artist_parts]
+    preferred_title_cf = _cf_text(preferred_title)
+    preferred_artist_cf = _cf_text(preferred_artist)
     matches = []
     seen = set()
     errors = []
@@ -1237,11 +1299,11 @@ def search_kugou_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
 
     session = build_http_session()
     query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
-    title_cf = raw_title.casefold()
-    artist_cf = raw_artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    title_cf = _cf_text(raw_title)
+    artist_cf = _cf_text(raw_artist)
+    part_cfs = [_cf_text(p) for p in artist_parts]
+    preferred_title_cf = _cf_text(preferred_title)
+    preferred_artist_cf = _cf_text(preferred_artist)
     matches = []
     seen = set()
     errors = []
@@ -1276,7 +1338,11 @@ def search_kugou_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
 
 
 def _normalize_kuwo_music_id(candidate: dict) -> str:
-    raw = str(candidate.get("rid") or candidate.get("musicrid") or candidate.get("id") or "").strip()
+    raw = ""
+    for key in ("rid", "musicrid", "id", "MUSICRID", "MUSICRIDID", "DC_TARGETID"):
+        raw = str(candidate.get(key) or "").strip()
+        if raw:
+            break
     if raw.startswith("MUSIC_"):
         return raw.split("MUSIC_", 1)[1]
     if "_" in raw:
@@ -1374,17 +1440,13 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
         return {"ok": False, "error": "missing-title", "context": context}
 
     session = build_http_session()
-    session.headers.update({
-        "Referer": "https://www.kuwo.cn/",
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json,text/plain,*/*",
-    })
+    session.headers.update(_kuwo_headers())
     query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_kuwo_query_terms(context)
-    title_cf = raw_title.casefold()
-    artist_cf = raw_artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    title_cf = _cf_text(raw_title)
+    artist_cf = _cf_text(raw_artist)
+    part_cfs = [_cf_text(p) for p in artist_parts]
+    preferred_title_cf = _cf_text(preferred_title)
+    preferred_artist_cf = _cf_text(preferred_artist)
     matches = []
     seen = set()
     errors = []
@@ -1392,15 +1454,11 @@ def search_kuwo_song_candidates(audio_path_str: str, limit: int = 10) -> dict:
     for term in query_terms[:10]:
         try:
             resp = session.get(
-                "https://search.kuwo.cn/r.s",
-                params={"ft": "music", "all": term, "rn": str(limit), "pn": "0", "pcjson": "1"},
+                f"https://search.kuwo.cn/r.s?ft=music&all={_kuwo_query_value(term)}&rn={limit}&pn=0&rformat=json&encoding=gbk",
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            try:
-                payload = resp.json() or {}
-            except Exception:
-                payload = resp.text
+            payload = _kuwo_parse_search_payload(resp) or {}
             items = _extract_kuwo_music_items(payload)
         except Exception as exc:
             errors.append(str(exc))
@@ -1486,11 +1544,7 @@ def fetch_kugou_candidate_lyric(candidate: dict) -> str:
 
 def fetch_kuwo_candidate_lyric(candidate: dict) -> str:
     session = build_http_session()
-    session.headers.update({
-        "Referer": "https://www.kuwo.cn/",
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json,text/plain,*/*",
-    })
+    session.headers.update(_kuwo_headers())
     rid = _normalize_kuwo_music_id(candidate)
     if not rid:
         return ""
@@ -1887,16 +1941,12 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
     if "kuwo" in requested_sources:
         try:
             resp = session.get(
-                "https://search.kuwo.cn/r.s",
-                params={"ft": "music", "all": keyword, "rn": str(min(limit, 10)), "pn": "0", "pcjson": "1"},
-                headers={"Referer": "https://www.kuwo.cn/", "User-Agent": "Mozilla/5.0", "Accept": "application/json,text/plain,*/*"},
+                f"https://search.kuwo.cn/r.s?ft=music&all={_kuwo_query_value(keyword)}&rn={min(limit, 10)}&pn=0&rformat=json&encoding=gbk",
+                headers=_kuwo_headers(),
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            try:
-                payload = resp.json() or {}
-            except Exception:
-                payload = resp.text
+            payload = _kuwo_parse_search_payload(resp) or {}
             items = _extract_kuwo_music_items(payload)
             for raw_item in items[:limit]:
                 rid = _normalize_kuwo_music_id(raw_item)
@@ -2122,11 +2172,11 @@ def search_netease_album_art(audio_path_str: str) -> dict:
 
     session = build_http_session()
     query_terms, preferred_title, preferred_artist, artist_parts, raw_title, raw_artist = _build_lyric_query_terms(context)
-    title_cf = raw_title.casefold()
-    artist_cf = raw_artist.casefold()
-    part_cfs = [p.casefold() for p in artist_parts]
-    preferred_title_cf = preferred_title.casefold()
-    preferred_artist_cf = preferred_artist.casefold()
+    title_cf = _cf_text(raw_title)
+    artist_cf = _cf_text(raw_artist)
+    part_cfs = [_cf_text(p) for p in artist_parts]
+    preferred_title_cf = _cf_text(preferred_title)
+    preferred_artist_cf = _cf_text(preferred_artist)
     best = None
     near_matches = []
     errors = []
@@ -2309,20 +2359,15 @@ def search_kuwo_album_art(audio_path_str: str) -> dict:
         return {"ok": False, "error": "kuwo-no-strict-match", "context": context}
 
     session = build_http_session()
-    session.headers.update({
-        "Referer": "https://www.kuwo.cn/",
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json,text/plain,*/*",
-    })
+    session.headers.update(_kuwo_headers())
     for term in query_terms[:6]:
         try:
             resp = session.get(
-                "https://search.kuwo.cn/r.s",
-                params={"ft": "music", "all": term, "rn": "10", "pn": "0", "pcjson": "1"},
+                f"https://search.kuwo.cn/r.s?ft=music&all={_kuwo_query_value(term)}&rn=10&pn=0&rformat=json&encoding=gbk",
                 timeout=min(request_timeout(), 8),
             )
             resp.raise_for_status()
-            items = (resp.json() or {}).get("abslist") or []
+            items = (_kuwo_parse_search_payload(resp) or {}).get("abslist") or []
         except Exception:
             continue
 
