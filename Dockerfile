@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY scrape_artist_images.py ./
 COPY webapp.py ./
+COPY lx_source_runner.js ./
 COPY templates ./templates
 COPY static ./static
 COPY docker-entrypoint.sh ./

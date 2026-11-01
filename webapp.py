@@ -1970,8 +1970,239 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
             errors.append({"source": "kuwo", "error": str(exc)})
 
     results = enrich_netease_preview_availability(results, max_checks=min(6, max(1, limit // 3)))
-    results.sort(key=lambda item: (-int(item.get("preview_available") or 0), -int(item.get("download_available") or 0), -int(item.get("score") or 0), item.get("source") or "", item.get("title") or ""))
-    return {"ok": True, "keyword": keyword, "results": results[:limit], "errors": errors}
+    lx_declared = set()
+    for lx_item in lx_list_sources():
+        for src_key in (lx_item.get("sources") or {}):
+            lx_declared.add(str(src_key).strip().lower())
+    source_alias_to_lx = {"kuwo": "kw", "kugou": "kg", "qq": "tx", "netease": "wy"}
+    for item in results:
+        item_source = str(item.get("source") or "").strip().lower()
+        lx_key = source_alias_to_lx.get(item_source, item_source)
+        item["lx_download_available"] = lx_key in lx_declared
+        item["lx_key"] = lx_key
+
+    results.sort(key=lambda item: (-int(item.get("preview_available") or 0), -int(item.get("lx_download_available") or 0), -int(item.get("download_available") or 0), -int(item.get("score") or 0), item.get("source") or "", item.get("title") or ""))
+    return {"ok": True, "keyword": keyword, "results": results[:limit], "errors": errors, "lx_sources_count": len(lx_declared)}
+
+
+_LX_KW_QUALITY_MAP = {"128k": "128kmp3", "320k": "320kmp3", "flac": "2000kflac", "hires": "4000kflac"}
+_LX_KW_EXT_MAP = {"128k": "mp3", "320k": "mp3", "flac": "flac", "hires": "flac"}
+_LX_KW_BITRATE_REVERSE = {128: "128k", 320: "320k", 2000: "flac", 4000: "hires"}
+
+# 移植自 MeoProject/lx-music-api-server (MIT) modules/url/kw.py，酷我 mobi.s 解析核心
+# ---------- 落雪音源脚本管理 ----------
+LX_SOURCES_DIR = Path(os.environ.get("LX_SOURCES_DIR", "/config/lx_sources"))
+LX_RUNNER_SCRIPT = Path(__file__).resolve().parent / "lx_source_runner.js"
+
+
+def _lx_script_path(source_id: str) -> Path:
+    safe = re.sub(r"[^\w-]+", "_", str(source_id or "").strip())
+    return LX_SOURCES_DIR / f"{safe}.js"
+
+
+def lx_list_sources() -> list[dict]:
+    """列出已添加的音源脚本"""
+    if not LX_SOURCES_DIR.exists():
+        return []
+    items = []
+    for path in sorted(LX_SOURCES_DIR.glob("*.js")):
+        meta_path = path.with_suffix(".json")
+        meta = {}
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                meta = {}
+        items.append({
+            "id": path.stem,
+            "name": meta.get("name") or path.stem,
+            "description": meta.get("description") or "",
+            "author": meta.get("author") or "",
+            "version": meta.get("version") or "",
+            "sources": meta.get("sources") or {},
+            "added_at": meta.get("added_at") or "",
+        })
+    return items
+
+
+def lx_save_source(source_id: str, code: str) -> dict:
+    """保存音源脚本并探测其支持的源/音质"""
+    if not str(code or "").strip():
+        return {"ok": False, "error": "empty-script"}
+    if not LX_RUNNER_SCRIPT.exists():
+        return {"ok": False, "error": "runner-missing"}
+    try:
+        LX_SOURCES_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        return {"ok": False, "error": f"dir-error: {exc}"}
+    safe = re.sub(r"[^\w-]+", "_", str(source_id or "").strip())
+    if not safe:
+        safe = f"src_{int(time.time())}"
+    target = LX_SOURCES_DIR / f"{safe}.js"
+    target.write_text(str(code), encoding="utf-8")
+    probe = lx_probe_source(target)
+    if not probe.get("ok"):
+        target.unlink(missing_ok=True)
+        return {"ok": False, "error": probe.get("error") or "probe-failed"}
+    meta = {
+        "name": probe.get("name") or safe,
+        "description": probe.get("info", {}).get("description") or "",
+        "author": probe.get("info", {}).get("author") or "",
+        "version": probe.get("info", {}).get("version") or "",
+        "sources": probe.get("sources") or {},
+        "added_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    (target.with_suffix(".json")).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "id": safe, "meta": meta}
+
+
+def lx_probe_source(script_path: Path) -> dict:
+    """运行脚本 --info 拿到 sources 声明"""
+    try:
+        proc = subprocess.run(
+            ["node", str(LX_RUNNER_SCRIPT), str(script_path), "--info"],
+            capture_output=True, text=True, timeout=45,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": f"runner-error: {exc}"}
+    out = (proc.stdout or "").strip()
+    if not out:
+        return {"ok": False, "error": f"runner-no-output: {(proc.stderr or '')[:200]}"}
+    try:
+        data = json.loads(out.splitlines()[-1])
+    except Exception:
+        return {"ok": False, "error": "runner-bad-output"}
+    if not data.get("ok"):
+        return {"ok": False, "error": data.get("error") or "probe-failed"}
+    if not data.get("sources"):
+        return {"ok": False, "error": "script-no-sources"}
+    return data
+
+
+def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
+    """遍历已添加音源脚本，请求 musicUrl，成功即返回"""
+    candidates = [source]
+    alias = {"kuwo": "kw", "kugou": "kg", "qq": "tx", "netease": "wy"}
+    if source in alias:
+        candidates.append(alias[source])
+    for item in lx_list_sources():
+        script_path = _lx_script_path(item["id"])
+        if not script_path.exists():
+            continue
+        declared = item.get("sources") or {}
+        for src_key in candidates:
+            if src_key not in declared:
+                continue
+            qualitys = declared[src_key].get("qualitys") or ["128k"]
+            use_quality = quality if quality in qualitys else qualitys[-1]
+            req = {"source": src_key, "action": "musicUrl", "type": use_quality,
+                   "musicInfo": {"songmid": song_id, "hash": song_id, "copyrightId": song_id}}
+            try:
+                proc = subprocess.run(
+                    ["node", str(LX_RUNNER_SCRIPT), str(script_path)],
+                    input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=45,
+                )
+            except Exception:
+                continue
+            out = (proc.stdout or "").strip()
+            if not out:
+                continue
+            try:
+                data = json.loads(out.splitlines()[-1])
+            except Exception:
+                continue
+            if data.get("ok") and data.get("url"):
+                return {"ok": True, "url": data["url"], "quality": use_quality,
+                        "lx_source": src_key, "via_script": item["id"]}
+    return {"ok": False, "error": "no-source-script-resolved", "message": "已添加的音源都无法解析该歌曲，请更换或更新音源脚本"}
+
+
+def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dict:
+    """解析下载链接：只走已添加的音源脚本，未添加音源时提示"""
+    if not lx_list_sources():
+        return {"ok": False, "error": "no-lx-source", "message": "请先点击「音源」按钮添加音源脚本"}
+    return lx_script_resolve_url(source, song_id, quality)
+    """内置落雪音源解析：酷我 mobi.s 接口直接拿真实下载链接（免账号）"""
+    if str(source or "").strip().lower() not in {"kw", "kuwo"}:
+        return {"ok": False, "error": "lx-unsupported-source"}
+    quality = str(quality or "128k").strip().lower()
+    if quality not in _LX_KW_QUALITY_MAP:
+        quality = "128k"
+    song_id = str(song_id or "").strip()
+    if not song_id:
+        return {"ok": False, "error": "missing-song-id"}
+    params = {
+        "user": "359307055300426",
+        "source": "",
+        "type": "convert_url_with_sign",
+        "br": _LX_KW_QUALITY_MAP[quality],
+        "format": _LX_KW_EXT_MAP[quality],
+        "sig": "0",
+        "rid": song_id,
+        "network": "WIFI",
+        "f": "web",
+    }
+    target_url = "https://mobi.kuwo.cn/mobi.s?" + "&".join(f"{k}={v}" for k, v in params.items())
+    try:
+        # 酷我接口国内直连可用，走代理出口反而被拒，强制不走代理
+        session = requests.Session()
+        session.trust_env = False
+        resp = session.get(target_url, headers={"User-Agent": "okhttp/3.10.0"}, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        return {"ok": False, "error": f"kw-api-error: {exc}"}
+    if int(data.get("code") or 0) != 200:
+        return {"ok": False, "error": f"kw-api-reject: {data.get('msg') or data.get('message') or 'unknown'}"}
+    body = data.get("data") or {}
+    url = str(body.get("url") or "").split("?")[0]
+    if not url:
+        return {"ok": False, "error": "kw-no-url"}
+    bitrate = int(body.get("bitrate") or 0)
+    actual_quality = _LX_KW_BITRATE_REVERSE.get(bitrate, "128k")
+    return {"ok": True, "url": url, "quality": actual_quality, "lx_source": "kw"}
+
+
+def lx_download_song(source: str, song_id: str, title: str, artist: str, quality: str = "128k") -> dict:
+    """解析链接并下载音频到音乐下载目录，返回落盘路径"""
+    resolved = lx_resolve_song_url(source, song_id, quality=quality)
+    if not resolved.get("ok"):
+        return resolved
+    url = resolved["url"]
+    ext = "flac" if "flac" in quality else "mp3"
+    safe_title = re.sub(r"[^\w\-. \u4e00-\u9fff]+", "_", str(title or "song")).strip("._ ") or "song"
+    safe_artist = re.sub(r"[^\w\-. \u4e00-\u9fff]+", "_", str(artist or "")).strip("._ ")
+    base_name = f"{safe_artist} - {safe_title}" if safe_artist else safe_title
+    download_dir = Path(os.environ.get("MUSIC_DOWNLOAD_DIR", "/music/自己下载"))
+    try:
+        download_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        return {"ok": False, "error": f"download-dir-error: {exc}"}
+    target = download_dir / f"{base_name}.{ext}"
+    counter = 2
+    while target.exists():
+        target = download_dir / f"{base_name} ({counter}).{ext}"
+        counter += 1
+    try:
+        session = requests.Session()
+        session.trust_env = False
+        with session.get(url, stream=True, timeout=60, headers={"User-Agent": "okhttp/3.10.0", "Referer": "https://www.kuwo.cn/"}) as resp:
+            resp.raise_for_status()
+            with open(target, "wb") as fh:
+                for chunk in resp.iter_content(chunk_size=131072):
+                    if chunk:
+                        fh.write(chunk)
+    except Exception as exc:
+        try:
+            target.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"download-failed: {exc}"}
+    size_mb = target.stat().st_size / 1048576
+    if size_mb < 0.05:
+        target.unlink(missing_ok=True)
+        return {"ok": False, "error": "downloaded-file-too-small"}
+    return {"ok": True, "path": str(target), "size_mb": round(size_mb, 2), "quality": quality, "source": resolved.get("lx_source")}
 
 
 def resolve_music_preview(result_id: str, keyword: str = "") -> dict:
@@ -4747,6 +4978,71 @@ def api_music_download():
     title = str(result.get("title") or "preview").strip() or "preview"
     safe_name = re.sub(r"[^\w\-.\u4e00-\u9fff]+", "_", title).strip("_") or "preview"
     return stream_remote_music_preview(str(result.get("download_url") or "").strip(), filename=f"{safe_name}.m4a")
+
+
+@app.route("/api/lx-sources", methods=["GET"])
+def api_lx_sources_list():
+    return jsonify({"ok": True, "sources": lx_list_sources()})
+
+
+@app.route("/api/lx-sources", methods=["POST"])
+def api_lx_sources_add():
+    payload = request.get_json(silent=True) or {}
+    source_id = str(payload.get("id") or "").strip()
+    code = str(payload.get("code") or "")
+    if not code.strip():
+        return jsonify({"ok": False, "error": "empty-script"}), 400
+    result = lx_save_source(source_id, code)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/api/lx-sources/<source_id>", methods=["DELETE"])
+def api_lx_sources_delete(source_id):
+    path = _lx_script_path(source_id)
+    removed = False
+    for target in (path, path.with_suffix(".json")):
+        if target.exists():
+            target.unlink()
+            removed = True
+    if not removed:
+        return jsonify({"ok": False, "error": "not-found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/music-lib-download")
+def api_music_lib_download():
+    """落雪音源下载：解析真实链接并落盘到音乐目录"""
+    result_id = str(request.args.get("id") or "").strip()
+    quality = str(request.args.get("quality") or "128k").strip()
+    keyword = str(request.args.get("keyword") or "").strip()
+    if not result_id or ":" not in result_id:
+        return jsonify({"ok": False, "error": "invalid-id"}), 400
+    source = result_id.split(":", 1)[0].strip().lower()
+    song_id = result_id.split(":", 1)[1].strip()
+
+    title, artist = "", ""
+    if keyword:
+        search_result = search_music_by_keyword(keyword, limit=30, sources=[source if source != "tx" else "qq"])
+        for item in search_result.get("results") or []:
+            if str(item.get("id") or "") == result_id:
+                title = str(item.get("title") or "").strip()
+                artist = str(item.get("artist") or "").strip()
+                break
+
+    result = lx_download_song(source, song_id, title=title, artist=artist, quality=quality)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    audio_path = result.pop("path")
+    scrape_result = {}
+    try:
+        context = track_search_context(Path(audio_path))
+        if context.get("title"):
+            scrape_result = {"matched_title": context.get("title"), "matched_artist": context.get("artist")}
+    except Exception:
+        pass
+    return jsonify({"ok": True, "file": audio_path, **result, "scrape_hint": scrape_result})
 
 
 @app.route("/api/job", methods=["GET", "POST"])

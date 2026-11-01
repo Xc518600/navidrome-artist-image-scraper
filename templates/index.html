@@ -227,8 +227,9 @@
     <div class="settings-lyrics-search-bar music-search-toolbar">
       <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
       <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
+      <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
-    <div class="hint" id="music-search-summary">输入关键词后开始搜索。当前优先支持 iTunes / 网易云试听和下载，其他来源先展示搜索结果。</div>
+    <div class="hint" id="music-search-summary">输入关键词后开始搜索。添加音源后搜索结果可直接下载（默认用内置酷我直连，添加音源脚本后支持更多源与更高音质）。</div>
   </section>
 
   <section class="card" id="music-preview-panel" style="display:none;">
@@ -244,6 +245,16 @@
   </section>
 
   <section class="card" id="music-search-results-panel">
+    <div id="lx-source-modal" style="display:none; margin-bottom:14px; border:1px solid var(--border, #ddd); border-radius:12px; padding:14px;">
+      <strong>音源管理</strong>
+      <p class="hint" style="margin:6px 0;">粘贴落雪音乐（lx-music）自定义音源脚本 JS 内容，保存后即可用该音源解析下载链接。脚本仅在本地运行。</p>
+      <div id="lx-source-list" class="simple-list compact-list" style="margin-bottom:10px;"></div>
+      <textarea id="lx-source-code" class="settings-search-input" style="width:100%; min-height:120px; font-family:monospace; font-size:12px;" placeholder="把音源脚本 JS 内容粘贴到这里..."></textarea>
+      <div class="settings-detail-actions" style="margin-top:8px;">
+        <button type="button" class="btn btn-primary btn-small" onclick="return saveLxSource()">保存音源</button>
+        <button type="button" class="btn btn-small" onclick="return closeLxSourceModal()">收起</button>
+      </div>
+    </div>
     <div class="settings-panel-title-row">
       <h3>搜索结果</h3>
       <span class="settings-badge settings-badge-secondary" id="music-search-count-badge">0 首</span>
@@ -1020,12 +1031,19 @@ function renderMusicSearchResults(results, keyword = '') {
       downloadLink.rel = 'noopener';
       downloadLink.textContent = '下载';
       actionWrap.appendChild(downloadLink);
-    } else {
+    } else if (item.lx_download_available) {
+      const lxButton = document.createElement('button');
+      lxButton.type = 'button';
+      lxButton.className = 'btn btn-small btn-primary';
+      lxButton.textContent = '下载到音乐库';
+      lxButton.onclick = () => downloadToLibrary(item, keyword);
+      actionWrap.appendChild(lxButton);
+    } else if (item.source === 'kuwo' || item.source === 'qq' || item.source === 'kugou' || item.source === 'netease') {
       const disabled = document.createElement('button');
       disabled.type = 'button';
       disabled.className = 'btn btn-small';
       disabled.disabled = true;
-      disabled.textContent = item.preview_reason && String(item.source || '') === 'netease' ? '当前不可下载' : '暂不支持下载';
+      disabled.textContent = item.preview_reason && String(item.source || '') === 'netease' ? '当前不可下载' : (item.source === 'itunes' ? 'iTunes 仅试听' : '需添加音源后下载');
       actionWrap.appendChild(disabled);
     }
 
@@ -1041,6 +1059,110 @@ function renderMusicSearchResults(results, keyword = '') {
 
     li.appendChild(actionWrap);
     list.appendChild(li);
+  }
+}
+
+function openLxSourceModal() {
+  const modal = document.getElementById('lx-source-modal');
+  if (modal) modal.style.display = 'block';
+  refreshLxSourceList();
+  return false;
+}
+
+function closeLxSourceModal() {
+  const modal = document.getElementById('lx-source-modal');
+  if (modal) modal.style.display = 'none';
+  return false;
+}
+
+async function refreshLxSourceList() {
+  const list = document.getElementById('lx-source-list');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/lx-sources');
+    const data = await res.json();
+    list.innerHTML = '';
+    const sources = data.sources || [];
+    if (!sources.length) {
+      const li = document.createElement('li');
+      li.className = 'muted';
+      li.textContent = '还没有添加音源，内置酷我直连可用。';
+      list.appendChild(li);
+      return;
+    }
+    for (const src of sources) {
+      const li = document.createElement('li');
+      const qualityText = Object.entries(src.sources || {}).map(([k, v]) => `${k}(${(v.qualitys || []).join('/')})`).join(', ');
+      li.textContent = `${src.name}${src.version ? ' ' + src.version : ''} ｜ ${qualityText || '未知音质'} ｜ ${src.description || ''}`;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn btn-small';
+      del.style.marginLeft = '8px';
+      del.textContent = '删除';
+      del.onclick = async () => {
+        if (!confirm(`删除音源 ${src.name}？`)) return;
+        await fetch(`/api/lx-sources/${encodeURIComponent(src.id)}`, { method: 'DELETE' });
+        refreshLxSourceList();
+      };
+      li.appendChild(del);
+      list.appendChild(li);
+    }
+  } catch (err) {
+    list.innerHTML = '';
+    const li = document.createElement('li');
+    li.className = 'muted';
+    li.textContent = `加载音源列表失败：${err}`;
+    list.appendChild(li);
+  }
+}
+
+async function saveLxSource() {
+  const textarea = document.getElementById('lx-source-code');
+  const summary = document.getElementById('music-search-summary');
+  const code = textarea ? textarea.value.trim() : '';
+  if (!code) { if (summary) summary.textContent = '请先粘贴音源脚本内容'; return false; }
+  if (summary) summary.textContent = '正在保存并探测音源...';
+  try {
+    const res = await fetch('/api/lx-sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (textarea) textarea.value = '';
+      if (summary) summary.textContent = `音源「${(data.meta && data.meta.name) || data.id}」已添加，下载时自动使用`;
+      refreshLxSourceList();
+    } else {
+      if (summary) summary.textContent = `音源添加失败：${data.error || '未知错误'}`;
+    }
+  } catch (err) {
+    if (summary) summary.textContent = `音源添加失败：${err}`;
+  }
+  return false;
+}
+
+async function downloadToLibrary(item, keyword) {
+  const btn = event && event.target instanceof HTMLButtonElement ? event.target : null;
+  const quality = (window.__lxDownloadQuality || '320k');
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '下载中...'; }
+  try {
+    const res = await fetch(`/api/music-lib-download?id=${encodeURIComponent(item.id)}&keyword=${encodeURIComponent(keyword || '')}&quality=${encodeURIComponent(quality)}`);
+    const data = await res.json();
+    if (data.ok) {
+      if (btn) btn.textContent = `已下载 ${data.size_mb}MB`;
+      const summary = document.getElementById('music-search-summary');
+      if (summary) summary.textContent = `已下载到音乐库：${data.file}`;
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = label || '下载到音乐库'; }
+      const summary = document.getElementById('music-search-summary');
+      if (summary) summary.textContent = `下载失败：${data.error || '未知错误'}`;
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = label || '下载到音乐库'; }
+    const summary = document.getElementById('music-search-summary');
+    if (summary) summary.textContent = `下载失败：${err}`;
   }
 }
 
