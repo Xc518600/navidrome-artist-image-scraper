@@ -70,6 +70,18 @@ MIXED_FOLDER_EXACT_PATHS = {
 }
 
 app = Flask(__name__)
+
+
+@app.after_request
+def _no_cache_html(response):
+    """HTML 页面禁缓存：手机浏览器曾因无 Cache-Control 头自缓存旧页面，导致改版后仍显示旧布局。"""
+    if response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 job_lock = threading.Lock()
 lyrics_candidate_store: dict[str, dict] = {}
 song_cover_candidate_store: dict[str, dict] = {}

@@ -11,22 +11,18 @@
   {% if page == 'music-library' and current_view == 'home' %}
   <header class="topbar">
     <div>
-      <p class="eyebrow">Navidrome 媒体工具台</p>
       <h1>媒体工具台</h1>
-      <p class="sub">
-        这里统一放歌手头像、歌词、专辑图、歌曲搜索下载相关入口；首页只保留工具条，点对应入口再看详情或执行任务。
-      </p>
       <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
       <div id="job-result-banner" class="hint" style="display:none;"></div>
     </div>
     <div class="actions toolbar-actions">
       {% if page == 'artist-images' %}
       {% else %}
-      <a class="btn btn-primary" href="/?page=artist-images">歌手头像</a>
-      <a class="btn btn-primary" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
-      <a class="btn btn-primary" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
-      <a class="btn btn-primary" href="/?page=music-library&view=music-search">歌曲搜索下载</a>
-      <a class="btn btn-primary" href="/?page=settings">设置</a>
+      <a class="btn" href="/?page=artist-images">歌手头像</a>
+      <a class="btn" href="/?page=music-library&view=lyrics#missing-lyrics">刮削歌词</a>
+      <a class="btn" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
+      <a class="btn" href="/?page=music-library&view=music-search">歌曲搜索下载</a>
+      <a class="btn" href="/?page=settings">设置</a>
       {% endif %}
     </div>
     <div id="home-bootstrap-indicator" class="home-bootstrap-indicator" style="display:none;" aria-live="polite">
@@ -138,7 +134,7 @@
       {% if scan_error %}<div class="error">{{ scan_error }}</div>{% endif %}
     </div>
     <div class="card success"><div class="label">刮削成功歌手</div><div class="value" id="success-artists-count">{{ data.stats.success_artists }}</div></div>
-    <div class="card danger"><div class="label">刮削失败歌手</div><div class="value" id="failed-artists-count">{{ data.stats.failed_artists }}</div></div>
+    <div class="{% if data.stats.failed_artists %}card danger{% else %}card{% endif %}"><div class="label">刮削失败歌手</div><div class="value" id="failed-artists-count">{{ data.stats.failed_artists }}</div></div>
     <div class="card"><div class="label">待处理歌手</div><div class="value" id="pending-artists-count">{{ data.pending_artists }}</div><div class="hint">已扫描到，但还没进入当前报告明细</div></div>
     <div class="card"><div class="label">上次任务成功歌手</div><div class="value" id="last-run-success-artists-count">{{ data.stats.last_run_success_artists }}</div></div>
   </section>
@@ -178,15 +174,18 @@
       <div>
         <p class="eyebrow">详情页</p>
         <h2>刮削歌词</h2>
-        <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描歌词”' }}</p>
+        <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，点下方“后台扫描歌词”开始' }}</p>
       </div>
-      <a class="btn btn-primary settings-lyrics-search-button lyrics-back-home-button" href="/?page=music-library">返回主页</a>
+      <div class="section-head-actions">
+        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'lyrics-scan')">后台扫描歌词</button>
+        <a class="btn settings-lyrics-search-button lyrics-back-home-button" href="/?page=music-library">返回主页</a>
+      </div>
     </div>
   </section>
   <section class="grid stats">
     <div class="card"><div class="label">总歌曲数</div><div class="value">{{ data.stats.songs }}</div></div>
     <div class="card success"><div class="label">有歌词</div><div class="value">{{ data.stats.lyrics_with_count }}</div></div>
-    <div class="card danger"><div class="label">刮削失败</div><div class="value">{{ data.stats.missing_lyrics }}</div></div>
+    <div class="{% if data.stats.missing_lyrics %}card danger{% else %}card{% endif %}"><div class="label">刮削失败</div><div class="value">{{ data.stats.missing_lyrics }}</div></div>
   </section>
   <section class="card" id="missing-lyrics">
       <h2>刮削失败</h2>
@@ -261,14 +260,17 @@
       <div>
         <p class="eyebrow">详情页</p>
         <h2>专辑图扫描结果</h2>
-        <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，请先点“后台扫描专辑图”' }}</p>
+        <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，点下方“后台扫描专辑图”开始' }}</p>
       </div>
-      <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
+      <div class="section-head-actions">
+        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'album-art-scan')">后台扫描专辑图</button>
+        <a class="btn settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
+      </div>
     </div>
   </section>
   <section class="grid stats">
     <div class="card success"><div class="label">有内嵌封面</div><div class="value">{{ data.stats.embedded_album_art_songs or 0 }}</div></div>
-    <div class="card danger"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
+    <div class="{% if data.stats.no_embedded_album_art_songs %}card danger{% else %}card{% endif %}"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
   </section>
   <section class="card" id="missing-album-art">
     <h2>无内嵌歌曲</h2>
