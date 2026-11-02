@@ -1102,21 +1102,14 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   问题：三张卡各自铺半透明玻璃渐变 → 缝隙 + 色差 + 太透。
-   做法：三块共用同一块不透明底板（视口基准 fixed 定位渐变），
-   并把该区域的不透明度提高，避免透出壁纸。 */
+   不透明度对齐首页玻璃卡（--card 34% 白），保持全站观感一致：
+   缝隙靠零外边距 + 去相接边框解决，色差靠视口基准 fixed 渐变解决。 */
 section.card:has(+ #music-search-entry),
 section#music-search-entry.card,
 section#music-search-results-panel.card {
-  background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.74)),
-    radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.12), transparent 42%),
-    radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.14), transparent 45%),
-    radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.12), transparent 45%),
-    rgb(252 246 250 / 0.92) !important;
   background-attachment: fixed !important;
-  backdrop-filter: blur(10px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+  backdrop-filter: blur(6px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(6px) saturate(145%) !important;
 }
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
@@ -1146,15 +1139,4 @@ section#music-search-results-panel.card {
   border-bottom: 1px solid var(--line) !important;
   border-bottom-left-radius: var(--radius) !important;
   border-bottom-right-radius: var(--radius) !important;
-}
-@media (prefers-color-scheme: dark) {
-  section.card:has(+ #music-search-entry),
-  section#music-search-entry.card,
-  section#music-search-results-panel.card {
-    background:
-      linear-gradient(135deg, rgb(38 24 34 / 0.88), rgb(28 16 26 / 0.84)),
-      radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.10), transparent 42%),
-      radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.12), transparent 45%),
-      rgb(24 14 22 / 0.94) !important;
-  }
 }
