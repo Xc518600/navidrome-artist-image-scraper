@@ -2256,12 +2256,12 @@ def _format_size_text(size_bytes: int) -> str:
     return f"{max(1, size_bytes // 1024)} KB"
 
 
-def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dict:
+def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k", attempts: int = 3) -> dict:
     """解析下载链接：只走已添加的音源脚本，未添加音源时提示"""
     if not lx_list_sources():
         return {"ok": False, "error": "no-lx-source", "message": "请先点击「音源」按钮添加音源脚本"}
-    # 音源脚本有随机超时概率，解析阶段最多重试 3 次
-    return lx_script_resolve_url(source, song_id, quality, attempts=3)
+    # 音源脚本有随机超时概率，解析阶段默认重试 3 次
+    return lx_script_resolve_url(source, song_id, quality, attempts=attempts)
     """内置落雪音源解析：酷我 mobi.s 接口直接拿真实下载链接（免账号）"""
     if str(source or "").strip().lower() not in {"kw", "kuwo"}:
         return {"ok": False, "error": "lx-unsupported-source"}
