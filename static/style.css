@@ -1100,3 +1100,33 @@ summary:hover { color: var(--text); }
   .btn.is-flowing::after { animation: none; }
   .btn.is-flowing { animation: none; }
 }
+
+/* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙 */
+.settings-main > #music-search-entry,
+.settings-main > #music-search-results-panel {
+  position: relative;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.settings-main > .section-head-card + #music-search-entry {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
+  padding-top: 10px;
+  box-shadow: var(--shadow);
+}
+.settings-main > #music-search-entry {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+  padding-bottom: 10px;
+}
+.settings-main > #music-search-results-panel {
+  border-top: none;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+  padding-top: 12px;
+  box-shadow: var(--shadow);
+}
