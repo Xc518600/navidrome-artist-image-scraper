@@ -1126,11 +1126,14 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
+  /* 壁纸清晰度差异：首页卡片只有 200px 高，白渐变 32%→14% 大部分区域只有 14% 白；
+     这块面板 800px+，同一渐变让下半部始终压着 14% 白，壁纸就糊一层。
+     这里去掉白渐变，只留 var(--card) 34% 白 + 光晕，毛玻璃保持 6px 与首页一致，
+     壁纸透出程度即与首页卡片相同。 */
   background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.14)),
-    radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.15), transparent 34%),
-    radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.18), transparent 38%),
-    radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.12), transparent 38%),
+    radial-gradient(circle at 8% 40px, rgb(34 211 238 / 0.10), transparent 220px),
+    radial-gradient(circle at 92% 60px, rgb(167 139 250 / 0.10), transparent 240px),
+    radial-gradient(circle at 76% calc(100% - 40px), rgb(244 114 182 / 0.08), transparent 240px),
     var(--card);
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px) saturate(145%);
