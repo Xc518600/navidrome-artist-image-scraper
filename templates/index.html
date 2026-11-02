@@ -292,7 +292,7 @@
           {% endif %}
         </div>
         <div class="missing-art-actions">
-          <button type="button" class="btn btn-small btn-primary progress-btn" data-idle-label="刮削封面" data-loading-label="正在刮削封面..." onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }}, { suppressReload: true, progressButton: this })'>刮削封面</button>
+          <button type="button" class="btn btn-small btn-primary progress-btn" data-idle-label="刮削封面" data-loading-label="正在刮削封面..." onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }}, { suppressReload: false, progressButton: this })'>刮削封面</button>
         </div>
       </li>
     {% else %}

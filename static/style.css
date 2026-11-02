@@ -220,7 +220,14 @@ h3 { font-size: 14px; font-weight: 600; }
 
 .progress-btn { position: relative; }
 .progress-btn.is-loading { color: transparent !important; pointer-events: none; }
-.progress-btn.is-loading > * { visibility: hidden; }
+.progress-btn.is-loading:not(.is-flowing) > * { visibility: hidden; }
+/* 流光态下不显示转圈，避免两套动画叠加 */
+.progress-btn.is-loading.is-flowing::after { content: none; animation: none; }
+.progress-btn.is-flowing {
+  color: var(--text) !important;
+  background: var(--btn-bg);
+  opacity: 1 !important;
+}
 .progress-btn.is-loading::after {
   content: "";
   position: absolute;
