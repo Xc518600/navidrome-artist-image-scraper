@@ -227,6 +227,14 @@
     <div class="settings-lyrics-search-bar music-search-toolbar">
       <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
       <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
+      <select id="music-source-select" class="settings-search-input settings-lyrics-search-input" style="width:auto; min-width:96px;" onchange="return searchMusicCatalog()">
+        <option value="">全部音源</option>
+        <option value="kuwo">酷我</option>
+        <option value="qq">QQ</option>
+        <option value="netease">网易云</option>
+        <option value="kugou">酷狗</option>
+        <option value="itunes">iTunes</option>
+      </select>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
     <div class="hint" id="music-search-summary">输入关键词后开始搜索。点击「音源」按钮添加落雪音源脚本后即可下载（未添加音源时仅试听）。</div>
@@ -1177,13 +1185,17 @@ async function searchMusicCatalog() {
   setButtonProgress(button, true, '正在搜索歌曲...');
   updateMusicSearchSummary(`正在搜索“${keyword}”...`);
   try {
-    const res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent('itunes,netease,qq,kugou,kuwo')}`);
+    const sourceSelect = document.getElementById('music-source-select');
+    const chosen = String(sourceSelect?.value || '').trim();
+    const sourcesParam = chosen ? chosen : 'itunes,netease,qq,kugou,kuwo';
+    const res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) {
       throw new Error(data?.error || '搜索失败');
     }
     renderMusicSearchResults(data.results || [], keyword);
-    updateMusicSearchSummary(`搜索完成：共找到 ${(data.results || []).length} 首相关歌曲。${(data.errors || []).length ? '部分来源搜索失败，已自动跳过。' : ''}`);
+    const sourceLabel = chosen ? {kuwo:'酷我',qq:'QQ',netease:'网易云',kugou:'酷狗',itunes:'iTunes'}[chosen] || chosen : '全部音源';
+    updateMusicSearchSummary(`${sourceLabel}搜索完成：共找到 ${(data.results || []).length} 首相关歌曲。${(data.errors || []).length ? '部分来源搜索失败，已自动跳过。' : ''}`);
   } catch (error) {
     renderMusicSearchResults([], keyword);
     updateMusicSearchSummary(`搜索失败：${error.message}`, 'error');
