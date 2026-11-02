@@ -431,6 +431,7 @@ function setButtonProgress(button, active, progressText = '') {
   }
   button.disabled = false;
   button.classList.remove('is-loading');
+  button.classList.remove('is-flowing');
   button.removeAttribute('aria-busy');
   button.textContent = idleLabel;
 }
@@ -721,6 +722,7 @@ async function searchSettingsLyrics() {
   }
 
   setButtonProgress(actionButton, true, '正在检查任务状态...');
+  if (actionButton) actionButton.classList.add('is-flowing');
   showJobBanner(`正在搜索与“${keyword}”匹配的歌词候选...`);
   return submitTargetJob('lyrics-online-write', { audio_path: song.source_file, search_keyword: keyword }, {
     suppressReload: true,
@@ -748,6 +750,7 @@ async function scrapeCurrentSongCover() {
   }
 
   setButtonProgress(actionButton, true, '正在检查任务状态...');
+  if (actionButton) actionButton.classList.add('is-flowing');
   showJobBanner('正在在线搜索歌曲封面并写入内嵌标签...');
   return submitTargetJob('song-cover-online-write', { audio_path: song.source_file }, { suppressReload: false, suppressSuccessBanner: false, renderToSettings: true, progressButtonId: 'song-cover-scrape-button' });
 }
