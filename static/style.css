@@ -1102,39 +1102,27 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙
-   （三张卡是 #music-library / body 下的平级 section，不是 .settings-main 的子元素） */
-#music-library + #music-search-entry,
-#music-search-entry + #music-search-results-panel {
+   三张卡是 body 下平级 section，紧邻兄弟选择器即可 */
+section#music-search-entry.card,
+section#music-search-results-panel.card {
   margin-top: -14px;
-}
-#music-search-entry,
-#music-search-results-panel {
-  position: relative;
-  margin-bottom: 0;
-}
-#music-search-entry {
-  margin-top: -14px;
-  border-top: none;
+  border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+section#music-search-entry.card {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   box-shadow: none;
 }
-#music-search-results-panel {
-  border-top: none;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+section#music-search-results-panel.card {
   box-shadow: var(--shadow);
 }
-#music-search-entry::before,
-#music-search-results-panel::before {
+/* 合并后画回一条内部分隔线 */
+section#music-search-results-panel.card::before {
   content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -1px;
+  display: block;
   height: 1px;
-  background: linear-gradient(90deg, transparent 4%, var(--line) 18%, var(--line) 82%, transparent 96%);
-  pointer-events: none;
+  margin: -1px 0 12px;
+  background: linear-gradient(90deg, transparent 2%, var(--line) 14%, var(--line) 86%, transparent 98%);
 }
