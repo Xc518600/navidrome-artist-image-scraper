@@ -1105,7 +1105,7 @@ summary:hover { color: var(--text); }
    三张卡是 body 下平级 section，紧邻兄弟选择器即可 */
 section#music-search-entry.card,
 section#music-search-results-panel.card {
-  margin-top: -14px;
+  margin-top: 0;
   border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
