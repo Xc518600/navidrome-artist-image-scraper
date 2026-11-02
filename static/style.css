@@ -1129,8 +1129,8 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* v12：再透一档。白 14%→10%，模糊 8px→6px，接近首页按钮下的透出感。 */
-  background: rgba(255, 255, 255, 0.10);
+  /* v13：微调。白 10%→8%，模糊保持 6px，只轻一点点。 */
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
