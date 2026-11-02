@@ -1117,8 +1117,9 @@ summary:hover { color: var(--text); }
 /* 搜索页三块卡片：结构上包进 .search-panel 统一容器，由容器提供唯一一层
    背景与边框，内部三块完全透明、无背景、无边框、无圆角、无边距。
    这样不存在“拼接”，从根上消除分割线与色差带。 */
-/* v3：面板本身完全不铺白，只留玻璃光晕 + 半透底。
-   白纱全部由像素级渐变限定在顶部，避免长面板整体发白。 */
+/* v4：可读性优先。
+   面板不再是全透明，而是回到接近首页那张玻璃卡的不透明度，
+   顶部仍保留一点高光，底部不再透到看不清文字。 */
 .search-panel {
   position: relative;
   margin: 14px 0;
@@ -1127,34 +1128,13 @@ summary:hover { color: var(--text); }
   border-radius: var(--radius);
   overflow: hidden;
   background:
-    radial-gradient(circle at 8% 40px, rgb(167 139 250 / 0.20), transparent 200px),
-    radial-gradient(circle at 92% 80px, rgb(244 114 182 / 0.16), transparent 220px),
-    rgb(255 255 255 / 0.20);
+    radial-gradient(circle at 8% 40px, rgb(167 139 250 / 0.16), transparent 200px),
+    radial-gradient(circle at 92% 80px, rgb(244 114 182 / 0.13), transparent 220px),
+    linear-gradient(180deg,
+      rgb(255 253 254 / 0.72) 0px,
+      rgb(255 251 252 / 0.66) 160px,
+      rgb(255 249 251 / 0.64) 100%);
   box-shadow: var(--shadow);
-}
-.search-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg,
-    rgb(255 255 255 / 0.22) 0px,
-    rgb(255 255 255 / 0.10) 80px,
-    rgb(255 255 255 / 0) 180px);
-}
-.search-panel > * {
-  position: relative;
-  z-index: 1;
-}.search-panel > .card,
-.search-panel > .card:hover {
-  background: transparent !important;
-  background-image: none !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  margin: 0 !important;
 }
 .search-panel > .card {
   padding-top: 14px;
