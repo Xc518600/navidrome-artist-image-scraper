@@ -1129,12 +1129,11 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* v10：v9 照抄 topbar 后，34% 白 + 14px 模糊落在壁纸浅色区上就是一片白。
-     要「隐约看到壁纸」：白度降到 20%，模糊降到 10px，壁纸轮廓即可透出。 */
-  background: rgba(255, 255, 255, 0.20);
+  /* v11：再透一档。白 20%→14%，模糊 10px→8px，壁纸更清晰。 */
+  background: rgba(255, 255, 255, 0.14);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .search-panel > .card,
 .search-panel > .card:hover {
