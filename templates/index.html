@@ -214,7 +214,7 @@
       <div>
         <p class="eyebrow">详情页</p>
         <h2>歌曲搜索下载</h2>
-        <p class="hint">支持搜索歌曲、试听，以及对支持的来源做下载。当前已接入 iTunes 与网易云的试听/下载增强，同时展示 QQ / 酷狗 / 酷我 搜索结果。</p>
+        <p class="hint">支持按关键词搜索歌曲，并用已添加的落雪音源解析下载到音乐库。搜索覆盖 QQ / 酷狗 / 酷我 / 网易云。</p>
       </div>
       <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
     </div>
@@ -222,7 +222,7 @@
   <section class="card" id="music-search-entry">
     <div class="settings-panel-title-row">
       <h3>搜索歌曲</h3>
-      <span class="settings-badge settings-badge-secondary">搜索 + 试听</span>
+      <span class="settings-badge settings-badge-secondary">搜索 + 下载</span>
     </div>
     <div class="settings-lyrics-search-bar music-search-toolbar">
       <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
@@ -242,19 +242,7 @@
       </select>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
-    <div class="hint" id="music-search-summary">输入关键词后开始搜索。点击「音源」按钮添加落雪音源脚本后即可下载（未添加音源时仅试听）。</div>
-  </section>
-
-  <section class="card" id="music-preview-panel" style="display:none;">
-    <div class="settings-panel-title-row">
-      <h3>试听播放器</h3>
-      <span class="settings-badge settings-badge-secondary" id="music-preview-source-badge">未播放</span>
-    </div>
-    <p class="hint" id="music-preview-title">请选择一首歌试听</p>
-    <audio id="music-preview-audio" controls preload="none" style="width:100%;"></audio>
-    <div class="settings-detail-actions" style="margin-top:12px;">
-      <a id="music-preview-download-link" class="btn btn-primary" href="#" target="_blank" rel="noopener" style="display:none;">下载当前试听</a>
-    </div>
+    <div class="hint" id="music-search-summary">输入关键词后开始搜索。点击「音源」按钮添加落雪音源脚本后即可下载。</div>
   </section>
 
   <section class="card" id="music-search-results-panel">
@@ -983,13 +971,6 @@ function updateMusicSearchSummary(message, tone = 'info') {
   node.className = tone === 'error' ? 'error' : 'hint';
 }
 
-function formatMusicPreviewStatus(item) {
-  const status = String(item?.preview_status || '').trim();
-  if (status === 'available') return '可试听';
-  if (status === 'checking') return '检测中';
-  if (status === 'unchecked') return '未预检';
-  return '暂不可试听';
-}
 
 function renderMusicSearchResults(results, keyword = '') {
   const list = document.getElementById('music-search-results-list');
@@ -1022,13 +1003,6 @@ function renderMusicSearchResults(results, keyword = '') {
     metaEl.textContent = `${item.artist || '-'} · ${item.album || '-'} · ${item.source_label || item.source || '-'} · ${item.duration_text || '--:--'}`;
     main.appendChild(metaEl);
 
-    if (!item.preview_available) {
-      const badge = document.createElement('span');
-      badge.className = 'result-badge';
-      badge.textContent = formatMusicPreviewStatus(item);
-      main.appendChild(badge);
-    }
-
     const formatsLine = document.createElement('span');
     formatsLine.className = 'result-formats muted';
     formatsLine.dataset.resultId = item.id || '';
@@ -1039,15 +1013,6 @@ function renderMusicSearchResults(results, keyword = '') {
 
     const actionWrap = document.createElement('div');
     actionWrap.className = 'result-actions';
-
-    if (item.preview_available) {
-      const playButton = document.createElement('button');
-      playButton.type = 'button';
-      playButton.className = 'btn btn-small';
-      playButton.textContent = '试听';
-      playButton.onclick = () => playMusicPreview(item, keyword);
-      actionWrap.appendChild(playButton);
-    }
 
     if (item.download_available) {
       const downloadLink = document.createElement('a');
@@ -1269,47 +1234,6 @@ async function searchMusicCatalog() {
     updateMusicSearchSummary(`搜索失败：${error.message}`, 'error');
   } finally {
     setButtonProgress(button, false);
-  }
-  return false;
-}
-
-async function playMusicPreview(item, keyword = '') {
-  const panel = document.getElementById('music-preview-panel');
-  const title = document.getElementById('music-preview-title');
-  const badge = document.getElementById('music-preview-source-badge');
-  const audio = document.getElementById('music-preview-audio');
-  const downloadLink = document.getElementById('music-preview-download-link');
-  if (!panel || !title || !badge || !audio || !downloadLink) return false;
-
-  title.textContent = `正在准备试听：${item.title || ''} - ${item.artist || ''}`;
-  badge.textContent = item.source_label || item.source || '未知来源';
-  panel.style.display = 'block';
-
-  try {
-    const res = await fetch(`/api/music-preview?id=${encodeURIComponent(item.id)}&keyword=${encodeURIComponent(keyword || '')}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok || !data?.preview_url) {
-      const reason = data?.preview_reason || item?.preview_reason || data?.error || '当前来源暂不支持试听';
-      throw new Error(reason);
-    }
-    const streamUrl = `/api/music-preview-stream?url=${encodeURIComponent(data.preview_url)}&title=${encodeURIComponent(data.title || 'preview')}`;
-    audio.src = streamUrl;
-    title.textContent = `正在试听：${data.title || item.title || ''} - ${data.artist || item.artist || ''}`;
-    if (data.download_url) {
-      downloadLink.href = `/api/music-download?id=${encodeURIComponent(data.id)}&keyword=${encodeURIComponent(keyword || '')}`;
-      downloadLink.style.display = '';
-    } else {
-      downloadLink.style.display = 'none';
-    }
-    try {
-      await audio.play();
-    } catch (e) {}
-  } catch (error) {
-    title.textContent = `试听失败：${error.message}`;
-    audio.removeAttribute('src');
-    audio.load();
-    downloadLink.style.display = 'none';
-    updateMusicSearchSummary(`试听失败：${error.message}`, 'error');
   }
   return false;
 }
