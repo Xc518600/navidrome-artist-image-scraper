@@ -11,6 +11,7 @@ import time
 from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -1819,9 +1820,32 @@ def resolve_netease_song_media(song_id: str) -> dict:
 
 
 def enrich_netease_preview_availability(results: list[dict], max_checks: int = 6) -> list[dict]:
+    """网易云试听预检：并发执行，避免串行请求把整次搜索拖到超时"""
+    targets = [it for it in results if str(it.get("source") or "") == "netease"][:max_checks]
+    target_ids = {id(it) for it in targets}
+    media_map = {}
+
+    def probe(item):
+        sid = str(item.get("id") or "").split(":", 1)[1].strip() if ":" in str(item.get("id") or "") else ""
+        if not sid:
+            return item, None
+        try:
+            return item, resolve_netease_song_media(sid)
+        except Exception:
+            return item, None
+
+    if targets:
+        with ThreadPoolExecutor(max_workers=min(4, len(targets))) as pool:
+            for item, media in pool.map(probe, targets):
+                media_map[id(item)] = media
+
     checked = 0
     enriched = []
     for item in results:
+        if id(item) not in target_ids:
+            enriched.append(item)
+            continue
+        media = media_map.get(id(item))
         if str(item.get("source") or "") != "netease":
             enriched.append(item)
             continue
@@ -1834,17 +1858,7 @@ def enrich_netease_preview_availability(results: list[dict], max_checks: int = 6
             enriched.append(item)
             continue
         checked += 1
-        song_id = str(item.get("id") or "").split(":", 1)[1].strip() if ":" in str(item.get("id") or "") else ""
-        if not song_id:
-            item = dict(item)
-            item["preview_available"] = False
-            item["download_available"] = False
-            item["preview_status"] = "unavailable"
-            item["preview_reason"] = "网易云歌曲 ID 缺失"
-            enriched.append(item)
-            continue
-        media = resolve_netease_song_media(song_id)
-        if media.get("ok") and media.get("preview_url"):
+        if media and media.get("ok") and media.get("preview_url"):
             item = dict(item)
             item["preview_available"] = True
             item["download_available"] = True
@@ -1857,8 +1871,7 @@ def enrich_netease_preview_availability(results: list[dict], max_checks: int = 6
             item["preview_available"] = False
             item["download_available"] = False
             item["preview_status"] = "unavailable"
-            error_text = str(media.get("error") or "网易云当前未返回可用音频流").strip()
-            item["preview_reason"] = error_text
+            item["preview_reason"] = str((media or {}).get("error") or "网易云当前未返回可用音频流").strip()
         enriched.append(item)
     return enriched
 

@@ -1242,11 +1242,24 @@ async function searchMusicCatalog() {
   try {
     const sourceSelect = document.getElementById('music-source-select');
     const chosen = String(sourceSelect?.value || '').trim();
-    const sourcesParam = chosen ? chosen : 'itunes,netease,qq,kugou,kuwo';
-    const res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`);
+    const sourcesParam = chosen ? chosen : 'qq,kugou,kuwo,netease';
+    let res = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 2 && !res; attempt++) {
+      try {
+        res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`, { cache: 'no-store' });
+      } catch (err) {
+        lastError = err;
+        // 首次失败多半是网络抖动/连接被重置，稍等重试一次
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    }
+    if (!res) {
+      throw new Error(`网络请求失败（${lastError && lastError.message ? lastError.message : '连接中断'}），请检查网络或稍后重试`);
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) {
-      throw new Error(data?.error || '搜索失败');
+      throw new Error(data?.error || data?.message || `搜索失败（HTTP ${res.status}）`);
     }
     renderMusicSearchResults(data.results || [], keyword);
     const sourceLabel = chosen ? {kuwo:'酷我',qq:'QQ',netease:'网易云',kugou:'酷狗',itunes:'iTunes'}[chosen] || chosen : '全部音源';
