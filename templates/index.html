@@ -292,7 +292,7 @@
           {% endif %}
         </div>
         <div class="missing-art-actions">
-          <button type="button" class="btn btn-small btn-primary" onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }})'>刮削封面</button>
+          <button type="button" class="btn btn-small btn-primary progress-btn" data-idle-label="刮削封面" data-loading-label="正在刮削封面..." onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }}, { suppressReload: true, progressButton: this })'>刮削封面</button>
         </div>
       </li>
     {% else %}
@@ -1376,9 +1376,14 @@ async function submitTargetJob(mode, target, options = {}) {
     suppressSuccessBanner = false,
     renderToSettings = false,
     progressButtonId = '',
-    progressLoadingText = ''
+    progressLoadingText = '',
+    progressButton: explicitButton = null
   } = options;
-  const progressButton = progressButtonId ? document.getElementById(progressButtonId) : null;
+  const progressButton = explicitButton || (progressButtonId ? document.getElementById(progressButtonId) : null);
+  if (progressButton && !progressButton.dataset.idleLabel) {
+    progressButton.dataset.idleLabel = progressButton.textContent.trim();
+  }
+  if (progressButton) progressButton.classList.add('is-flowing');
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1458,6 +1463,7 @@ async function submitTargetJob(mode, target, options = {}) {
     const resultMessage = summarizeJobResult(job, '这首歌内嵌封面刮削任务已结束');
     showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
     setButtonProgress(progressButton, false);
+    if (progressButton) progressButton.classList.remove('is-flowing');
     if (job?.returncode === 0) {
       refreshSettingsCover(window.__selectedSettingsSong);
     }
