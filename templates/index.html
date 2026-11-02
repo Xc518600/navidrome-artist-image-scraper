@@ -233,7 +233,6 @@
         <option value="qq">QQ</option>
         <option value="netease">网易云</option>
         <option value="kugou">酷狗</option>
-        <option value="itunes">iTunes</option>
       </select>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
@@ -1302,7 +1301,7 @@ async function searchMusicCatalog() {
       throw new Error(data?.error || data?.message || '搜索失败');
     }
     renderMusicSearchResults(data.results || [], keyword);
-    const sourceLabel = chosen ? {kuwo:'酷我',qq:'QQ',netease:'网易云',kugou:'酷狗',itunes:'iTunes'}[chosen] || chosen : '全部音源';
+    const sourceLabel = chosen ? {kuwo:'酷我',qq:'QQ',netease:'网易云',kugou:'酷狗'}[chosen] || chosen : '全部音源';
     updateMusicSearchSummary(`${sourceLabel}搜索完成：共找到 ${(data.results || []).length} 首相关歌曲。${(data.errors || []).length ? '部分来源搜索失败，已自动跳过。' : ''}`);
   } catch (error) {
     renderMusicSearchResults([], keyword);
