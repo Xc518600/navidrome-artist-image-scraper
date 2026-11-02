@@ -1252,6 +1252,7 @@ async function searchMusicCatalog() {
     return false;
   }
   setButtonProgress(button, true, '正在搜索歌曲...');
+  if (button) button.classList.add('is-flowing');
   updateMusicSearchSummary(`正在搜索“${keyword}”...`);
   try {
     const sourceSelect = document.getElementById('music-source-select');
@@ -1305,6 +1306,7 @@ async function searchMusicCatalog() {
     updateMusicSearchSummary(`搜索失败：${error.message}`, 'error');
   } finally {
     setButtonProgress(button, false);
+    if (button) button.classList.remove('is-flowing');
   }
   return false;
 }
