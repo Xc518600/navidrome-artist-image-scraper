@@ -1104,28 +1104,35 @@ summary:hover { color: var(--text); }
 /* 搜索页：三张平级卡片合并成一张连续面板。
    三张都是 body 下平级 section。要求：
    1) 外边距归零、相接边框去掉 —— 不留物理缝隙；
-   2) 三块共用同一套底板（同款玻璃渐变），且渐变以视口为基准（fixed），
-      否则每块各自从自身起点铺渐变，颜色深浅必然对不上，看起来像三块拼的。 */
+   2) 三块共用同一块底板：后两张透明，由首卡提供整块渐变底；
+      并为整段区域补一层与 .card 同款但不透明的基础色，保证底色均匀一致。 */
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
   border-bottom: 0 !important;
   border-bottom-left-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
-  background-attachment: fixed;
+  padding-bottom: 12px !important;
 }
 section#music-search-entry.card,
 section#music-search-results-panel.card {
   margin: 0 !important;
-  background-attachment: fixed;
-}
-section#music-search-entry.card {
-  border-top: 0 !important;
-  border-bottom: 0 !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+section#music-search-entry.card {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
 }
 section#music-search-results-panel.card {
-  border-top: 0 !important;
-  border-top-left-radius: 0 !important;
-  border-top-right-radius: 0 !important;
+  padding-top: 8px !important;
+  padding-bottom: 18px !important;
+  border-bottom-left-radius: var(--radius) !important;
+  border-bottom-right-radius: var(--radius) !important;
 }
