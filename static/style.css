@@ -1102,20 +1102,21 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   关键：外边距必须清零，否则即使边框去掉也会露出底色缝隙。 */
+   问题1：外边距必须清零，否则露出底色缝隙。
+   问题2：卡片底色是半透明玻璃 + 各自渐变，叠两张必然有色差带，
+   所以后两张用同一张首卡作为整块底板，其余两层完全透明、无边框、无模糊。 */
 section#music-search-entry.card,
 section#music-search-results-panel.card {
   margin: 0 !important;
   padding: 14px 20px;
-}
-section#music-search-entry.card {
-  border-bottom: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  box-shadow: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 section#music-search-results-panel.card {
-  border-top: 0;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-bottom-left-radius: var(--radius) !important;
+  border-bottom-right-radius: var(--radius) !important;
 }
