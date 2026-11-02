@@ -438,6 +438,25 @@ h3 { font-size: 14px; font-weight: 600; }
   }
   .result-row .result-actions > .result-download { display: flex; flex-direction: column; gap: 6px; }
   .result-row .result-actions > .result-download > .btn { width: 100%; }
+  /* 下载块内的进度与音质行不能被 flex 拉伸 */
+  .result-row .result-actions > .result-download > .download-progress,
+  .result-row .result-actions > .result-download > .quality-chips {
+    flex: 0 0 auto;
+    align-self: stretch;
+  }
+  .result-row .result-actions > .result-download > .quality-chips { display: flex; gap: 4px; }
+  .result-row .result-actions > .result-download > .quality-chips .quality-chip { flex: 1 1 0; }
+}
+/* 下载块与来源页按钮等高：统一 padding 与行高 */
+.result-row .result-actions > .result-download { justify-content: flex-start; }
+.result-row .result-actions > .btn,
+.result-row .result-actions > a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+}
+.result-row .result-actions > .result-download > .btn { min-height: 38px; }
 }
 
 
