@@ -1101,33 +1101,26 @@ summary:hover { color: var(--text); }
   .btn.is-flowing { animation: none; }
 }
 
-/* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙
-   三张卡是 body 下平级 section，需用相邻兄弟选择器彻底清掉外边距 */
+/* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙。
+   三张卡是 body 下平级 section，必须同时清外边距 + 去掉内部边框/圆角。 */
 section.card.section-head-card + section#music-search-entry,
-section#music-search-entry + section#music-search-results-panel,
+section#music-search-entry + section#music-search-results-panel {
+  margin-top: 0 !important;
+}
 section#music-search-entry,
 section#music-search-results-panel {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-section#music-search-entry.card,
-section#music-search-results-panel.card {
-  border-top: 1px solid var(--line);
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  box-shadow: none;
+  margin-bottom: 14px;
 }
 section#music-search-entry.card {
-  border-top: none;
-  border-bottom: none;
+  border-bottom: 0;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  padding-bottom: 6px;
+  padding-bottom: 8px;
+  box-shadow: none;
 }
 section#music-search-results-panel.card {
-  border-top: none;
-  border-bottom-left-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
-  padding-top: 6px;
-  box-shadow: var(--shadow);
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 8px;
 }
