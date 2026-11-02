@@ -1102,27 +1102,32 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙
-   三张卡是 body 下平级 section，紧邻兄弟选择器即可 */
+   三张卡是 body 下平级 section，需用相邻兄弟选择器彻底清掉外边距 */
+section.card.section-head-card + section#music-search-entry,
+section#music-search-entry + section#music-search-results-panel,
+section#music-search-entry,
+section#music-search-results-panel {
+  margin-top: 0;
+  margin-bottom: 0;
+}
 section#music-search-entry.card,
 section#music-search-results-panel.card {
-  margin-top: 0;
-  border-top: 0;
+  border-top: 1px solid var(--line);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-}
-section#music-search-entry.card {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
   box-shadow: none;
 }
-section#music-search-results-panel.card {
-  box-shadow: var(--shadow);
+section#music-search-entry.card {
+  border-top: none;
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-bottom: 6px;
 }
-/* 合并后画回一条内部分隔线 */
-section#music-search-results-panel.card::before {
-  content: "";
-  display: block;
-  height: 1px;
-  margin: -1px 0 12px;
-  background: linear-gradient(90deg, transparent 2%, var(--line) 14%, var(--line) 86%, transparent 98%);
+section#music-search-results-panel.card {
+  border-top: none;
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+  padding-top: 6px;
+  box-shadow: var(--shadow);
 }
