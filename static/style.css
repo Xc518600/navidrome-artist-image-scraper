@@ -1101,26 +1101,21 @@ summary:hover { color: var(--text); }
   .btn.is-flowing { animation: none; }
 }
 
-/* 搜索页：顶部说明 + 搜索框 + 结果合并成一张卡，去掉中间缝隙。
-   三张卡是 body 下平级 section，必须同时清外边距 + 去掉内部边框/圆角。 */
-section.card.section-head-card + section#music-search-entry,
-section#music-search-entry + section#music-search-results-panel {
-  margin-top: 0 !important;
-}
-section#music-search-entry,
-section#music-search-results-panel {
-  margin-bottom: 14px;
+/* 搜索页：三张平级卡片合并成一张连续面板。
+   关键：外边距必须清零，否则即使边框去掉也会露出底色缝隙。 */
+section#music-search-entry.card,
+section#music-search-results-panel.card {
+  margin: 0 !important;
+  padding: 14px 20px;
 }
 section#music-search-entry.card {
   border-bottom: 0;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  padding-bottom: 8px;
   box-shadow: none;
 }
 section#music-search-results-panel.card {
   border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  padding-top: 8px;
 }
