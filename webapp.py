@@ -5042,21 +5042,60 @@ def api_scan_count():
 
 
 def lx_probe_song_formats(source: str, song_id: str) -> dict:
-    """探测各音质能否解析并取到文件体积（用于结果列表展示）"""
+    """探测各音质实际拿到的链接与体积（同一链接=音源降级，需提示）"""
     formats = []
+    seen_urls = {}
     for quality, label in (("320k", "320k MP3"), ("flac", "无损 FLAC")):
-        try:
-            info = lx_resolve_with_details(source, song_id, quality)
-        except Exception:
+        info = None
+        for attempt in range(2):
+            try:
+                info = lx_resolve_with_details(source, song_id, quality)
+            except Exception:
+                info = None
+            if info and info.get("ok"):
+                break
+            info = None
+        if not info:
             continue
-        if info.get("ok"):
-            formats.append({
-                "quality": quality,
-                "label": label,
-                "size_text": info.get("size_text") or "大小未知",
-                "size_bytes": int(info.get("size_bytes") or 0),
-            })
+        url = str(info.get("url") or "")
+        size_bytes = int(info.get("size_bytes") or 0)
+        real_quality = _guess_quality_from_url(url) or quality
+        key = url.split("?")[0]
+        downgraded = real_quality != quality
+        entry = {
+            "quality": quality,
+            "label": label,
+            "size_text": _format_size_text(size_bytes),
+            "size_bytes": size_bytes,
+            "real_quality": real_quality,
+            "downgraded": downgraded,
+        }
+        if key in seen_urls:
+            # 与前一档返回同一文件：说明音源没有更高音质，只降级到这一档
+            entry["downgraded"] = True
+            entry["real_quality"] = seen_urls[key]
+            entry["size_text"] = "同一文件"
+            entry["note"] = "音源实际只返回了较低音质"
+        else:
+            seen_urls[key] = real_quality
+        entry["real_quality"] = real_quality
+        formats.append(entry)
     return {"ok": bool(formats), "formats": formats}
+
+
+def _guess_quality_from_url(url: str) -> str:
+    """按链接文件名/后缀推断真实音质档位"""
+    low = str(url or "").lower()
+    base = low.split("?")[0]
+    if base.endswith(".flac") or "flac" in base:
+        return "flac"
+    if base.endswith(".m4a") or base.endswith(".aac"):
+        return "m4a"
+    if base.endswith(".mp3"):
+        return "mp3"
+    return ""
+
+
 
 
 @app.route("/api/music-search")

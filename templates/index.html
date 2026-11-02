@@ -1090,25 +1090,35 @@ function renderMusicSearchResults(results, keyword = '') {
 }
 
 async function probeResultFormats(rows) {
-  const queue = rows.filter((item) => item && item.id && String(item.id).includes(':')).slice(0, 12);
+  const queue = rows.filter((item) => item && item.id && String(item.id).includes(':')).slice(0, 10);
   let index = 0;
   const worker = async () => {
     while (index < queue.length) {
       const item = queue[index++];
-      const el = document.querySelector(`.result-formats[data-result-id="${item.id}"]`);
+      const el = document.querySelector(`.result-formats[data-result-id="${CSS.escape(item.id)}"]`);
       if (!el) continue;
-      try {
-        const res = await fetch(`/api/music-probe-formats?id=${encodeURIComponent(item.id)}`);
-        const data = await res.json();
-        const formats = data.formats || [];
-        if (formats.length) {
-          el.textContent = '音质：' + formats.map((f) => `${f.label} ${f.size_text}`).join(' · ');
-        } else {
-          el.textContent = '音质：当前音源无法解析';
-        }
-      } catch (err) {
-        el.textContent = '音质：检测失败';
+      let data = null;
+      for (let attempt = 0; attempt < 2 && !data; attempt++) {
+        try {
+          const res = await fetch(`/api/music-probe-formats?id=${encodeURIComponent(item.id)}`);
+          const body = await res.json();
+          if (res.ok && body && body.ok) data = body;
+        } catch (err) { /* 重试一次 */ }
       }
+      if (!data) {
+        el.textContent = '音质：暂无法解析';
+        continue;
+      }
+      const formats = data.formats || [];
+      if (!formats.length) { el.textContent = '音质：暂无法解析'; continue; }
+      const parts = formats.map((f) => {
+        if (f.size_text === '同一文件') {
+          return `${f.label}（音源实际返回 ${f.real_quality.toUpperCase()}，尺寸同上）`;
+        }
+        const tag = f.downgraded ? `（实为 ${String(f.real_quality || '').toUpperCase()}）` : '';
+        return `${f.label} ${f.size_text}${tag}`;
+      });
+      el.textContent = '音质：' + parts.join(' · ');
     }
   };
   await Promise.all([worker(), worker(), worker()]);
