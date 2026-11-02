@@ -235,6 +235,11 @@
         <option value="kugou">酷狗</option>
         <option value="itunes">iTunes</option>
       </select>
+      <select id="music-quality-select" class="settings-search-input settings-lyrics-search-input" style="width:auto; min-width:84px;" title="下载音质">
+        <option value="128k">标准 128k</option>
+        <option value="320k" selected>高品 320k</option>
+        <option value="flac">无损 FLAC</option>
+      </select>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
     <div class="hint" id="music-search-summary">输入关键词后开始搜索。点击「音源」按钮添加落雪音源脚本后即可下载（未添加音源时仅试听）。</div>
@@ -1152,7 +1157,8 @@ async function saveLxSource() {
 
 async function downloadToLibrary(item, keyword) {
   const btn = event && event.target instanceof HTMLButtonElement ? event.target : null;
-  const quality = (window.__lxDownloadQuality || '320k');
+  const qualitySelect = document.getElementById('music-quality-select');
+  const quality = String(qualitySelect?.value || '320k');
   const label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '下载中...'; }
   try {
