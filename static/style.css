@@ -1103,27 +1103,25 @@ summary:hover { color: var(--text); }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
    三张都是 body 下平级 section。做法：
-   1) 全部零外边距，避免露底缝隙；
-   2) 后两张改成完全透明（去背景/边框/模糊/阴影），只由首卡提供整块底板，
-      避免多层半透明玻璃叠加产生的色差带。 */
-section#music-search-entry.card,
-section#music-search-results-panel.card {
+   1) 三者外边距归零，不留物理缝隙；
+   2) 首卡去掉下边框与下圆角，后两张复用同一个 .card 底板（同款玻璃背景），
+      只拼接不透明区，避免透明叠层导致的“太透”。 */
+section.card:has(+ #music-search-entry) {
+  margin-bottom: 0 !important;
+  border-bottom: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+section#music-search-entry.card {
   margin: 0 !important;
-  padding: 10px 20px;
-  background: transparent !important;
-  background-image: none !important;
-  border: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 section#music-search-results-panel.card {
-  padding-bottom: 18px;
-}
-section#music-search-entry.card:hover,
-section#music-search-results-panel.card:hover {
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
+  margin: 0 !important;
+  border-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
 }
