@@ -1262,28 +1262,45 @@ async function searchMusicCatalog() {
     const sourceSelect = document.getElementById('music-source-select');
     const chosen = String(sourceSelect?.value || '').trim();
     const sourcesParam = chosen ? chosen : 'qq,kugou,kuwo,netease';
-    let res = null;
+    // 异步两段式：提交任务（秒回）+ 轮询结果，避免长连接被网关掐断
+    let jobId = null;
     let lastError = null;
-    for (let attempt = 0; attempt < 3 && !res; attempt++) {
+    for (let attempt = 0; attempt < 3 && !jobId; attempt++) {
       try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 45000);
-        try {
-          res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`, { cache: 'no-store', signal: ctrl.signal });
-        } finally { clearTimeout(timer); }
+        const st = await fetch(`/api/music-search-async?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`, { cache: 'no-store' });
+        const stData = await st.json();
+        if (stData?.ok && stData.job) jobId = stData.job;
+        else lastError = new Error(stData?.error || '无法创建搜索任务');
       } catch (err) {
         lastError = err;
-        res = null;
-        // 偶发断链/超时：间隔递增后重试
         if (attempt < 2) await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
       }
     }
-    if (!res) {
+    if (!jobId) {
       throw new Error(`网络请求失败（${lastError && lastError.message ? lastError.message : '连接中断'}），请检查网络或稍后重试`);
     }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok) {
-      throw new Error(data?.error || data?.message || `搜索失败（HTTP ${res.status}）`);
+    let data = null;
+    let pollFails = 0;
+    const deadline = Date.now() + 90000;
+    while (!data) {
+      await new Promise((r) => setTimeout(r, 800));
+      if (Date.now() > deadline) throw new Error('搜索超时，请稍后重试');
+      let p = null;
+      try {
+        const res = await fetch(`/api/music-search-result?job=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+        p = await res.json();
+        pollFails = 0;
+      } catch (err) {
+        pollFails += 1;
+        if (pollFails > 12) throw new Error('与服务器的连接多次中断，请检查网络');
+        continue;
+      }
+      if (!p || !p.ok) continue;
+      if (p.state === 'done') data = p.result;
+      else if (p.state === 'error') throw new Error(p.error || '搜索失败');
+    }
+    if (!data?.ok) {
+      throw new Error(data?.error || data?.message || '搜索失败');
     }
     renderMusicSearchResults(data.results || [], keyword);
     const sourceLabel = chosen ? {kuwo:'酷我',qq:'QQ',netease:'网易云',kugou:'酷狗',itunes:'iTunes'}[chosen] || chosen : '全部音源';

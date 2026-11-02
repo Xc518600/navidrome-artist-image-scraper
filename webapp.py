@@ -5160,6 +5160,43 @@ def _guess_quality_from_url(url: str) -> str:
 
 
 
+SEARCH_JOBS: dict[str, dict] = {}
+
+
+@app.route("/api/music-search-async")
+def api_music_search_async():
+    """异步搜索：立即返回 job id，前端轮询结果，避免长连接被网关掐断"""
+    keyword = str(request.args.get("q") or request.args.get("keyword") or "").strip()
+    raw_sources = str(request.args.get("sources") or "qq,kugou,kuwo,netease").strip()
+    limit = int(request.args.get("limit") or 24)
+    sources = [item.strip().lower() for item in raw_sources.split(",") if item.strip()]
+    job_id = uuid.uuid4().hex[:16]
+    SEARCH_JOBS[job_id] = {"state": "running", "keyword": keyword}
+    # 清理过老的 job，防止内存无限增长
+    if len(SEARCH_JOBS) > 60:
+        for k in list(SEARCH_JOBS.keys())[:20]:
+            SEARCH_JOBS.pop(k, None)
+
+    def worker():
+        try:
+            result = search_music_by_keyword(keyword, limit=limit, sources=sources)
+            SEARCH_JOBS[job_id] = {"state": "done", "result": result}
+        except Exception as exc:
+            SEARCH_JOBS[job_id] = {"state": "error", "error": str(exc)}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id})
+
+
+@app.route("/api/music-search-result")
+def api_music_search_result():
+    job_id = str(request.args.get("job") or "").strip()
+    job = SEARCH_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "unknown-job"}), 404
+    return jsonify({"ok": True, **job})
+
+
 @app.route("/api/music-search")
 def api_music_search():
     keyword = str(request.args.get("q") or request.args.get("keyword") or "").strip()
