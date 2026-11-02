@@ -1102,10 +1102,22 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   三张都是 body 下平级 section。要求：
-   1) 外边距归零、相接边框去掉 —— 不留物理缝隙；
-   2) 三块共用同一块底板：后两张透明，由首卡提供整块渐变底；
-      并为整段区域补一层与 .card 同款但不透明的基础色，保证底色均匀一致。 */
+   问题：三张卡各自铺 .card 的半透明玻璃渐变，渐变起点随卡片高度不同，
+   拼接后必然出现上浅下深的色带。
+   做法：整段区域统一改用同一种实心底板色（var(--card)）+ 同一层色彩光晕，
+   三块共用同一套 background，渐变以视口为基准，颜色完全一致。 */
+section.card:has(+ #music-search-entry),
+section#music-search-entry.card,
+section#music-search-results-panel.card {
+  background:
+    radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.10), transparent 40%),
+    radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.12), transparent 42%),
+    radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.10), transparent 42%),
+    var(--card) !important;
+  background-attachment: fixed !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
   border-bottom: 0 !important;
@@ -1118,13 +1130,11 @@ section#music-search-results-panel.card {
   margin: 0 !important;
   padding-left: 20px !important;
   padding-right: 20px !important;
-  background: transparent !important;
-  background-image: none !important;
-  border: 0 !important;
+  border-left: 1px solid var(--line) !important;
+  border-right: 1px solid var(--line) !important;
+  border-top: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 section#music-search-entry.card {
   padding-top: 4px !important;
@@ -1133,6 +1143,7 @@ section#music-search-entry.card {
 section#music-search-results-panel.card {
   padding-top: 8px !important;
   padding-bottom: 18px !important;
+  border-bottom: 1px solid var(--line) !important;
   border-bottom-left-radius: var(--radius) !important;
   border-bottom-right-radius: var(--radius) !important;
 }
