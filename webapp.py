@@ -2118,7 +2118,7 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
                 return {"ok": True, "url": data["url"], "quality": use_quality,
                         "lx_source": src_key, "via_script": item["id"]}
             print(f"[lx-source] resolve rejected by {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
-    return {"ok": False, "error": "no-source-script-resolved", "message": "已添加的音源都无法解析该歌曲（接口可能暂时超时，可稍后重试；若持续失败请更换或更新音源脚本）"}
+    return {"ok": False, "error": "no-source-script-resolved", "message": f"{source.upper()} 音源解析失败（免费音源接口不稳定，可能已失效），可切换其它音源搜索同首歌重试"}
 
 
 def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dict:

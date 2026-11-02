@@ -1171,7 +1171,7 @@ async function downloadToLibrary(item, keyword) {
     } else {
       if (btn) { btn.disabled = false; btn.textContent = label || '下载到音乐库'; }
       const summary = document.getElementById('music-search-summary');
-      if (summary) summary.textContent = `下载失败：${data.error || '未知错误'}`;
+      if (summary) summary.textContent = `下载失败：${data.message || data.error || '未知错误'}`;
     }
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = label || '下载到音乐库'; }
