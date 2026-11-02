@@ -1129,11 +1129,11 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* v11：再透一档。白 20%→14%，模糊 10px→8px，壁纸更清晰。 */
-  background: rgba(255, 255, 255, 0.14);
+  /* v12：再透一档。白 14%→10%，模糊 8px→6px，接近首页按钮下的透出感。 */
+  background: rgba(255, 255, 255, 0.10);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .search-panel > .card,
 .search-panel > .card:hover {
