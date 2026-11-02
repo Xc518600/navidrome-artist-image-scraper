@@ -1102,25 +1102,29 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   三张都是 body 下平级 section。做法：
-   1) 三者外边距归零，不留物理缝隙；
-   2) 首卡去掉下边框与下圆角，后两张复用同一个 .card 底板（同款玻璃背景），
-      只拼接不透明区，避免透明叠层导致的“太透”。 */
+   三张都是 body 下平级 section。要求：
+   1) 外边距归零、相接边框去掉 —— 不留物理缝隙；
+   2) 三块共用同一套底板（同款玻璃渐变），且渐变以视口为基准（fixed），
+      否则每块各自从自身起点铺渐变，颜色深浅必然对不上，看起来像三块拼的。 */
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
   border-bottom: 0 !important;
   border-bottom-left-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
+  background-attachment: fixed;
+}
+section#music-search-entry.card,
+section#music-search-results-panel.card {
+  margin: 0 !important;
+  background-attachment: fixed;
 }
 section#music-search-entry.card {
-  margin: 0 !important;
   border-top: 0 !important;
   border-bottom: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 section#music-search-results-panel.card {
-  margin: 0 !important;
   border-top: 0 !important;
   border-top-left-radius: 0 !important;
   border-top-right-radius: 0 !important;
