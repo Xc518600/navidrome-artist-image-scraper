@@ -1101,24 +1101,23 @@ summary:hover { color: var(--text); }
   .btn.is-flowing { animation: none; }
 }
 
-/* 搜索页：三张平级卡片合并成一张连续面板。
-   残留分割线的真因：三块各自带了 backdrop-filter 毛玻璃。
-   Safari 对每个独立模糊层单独采样计算，层与层的接缝处必然出现色差带，
-   无论怎么去边框、对齐外边距都消不掉。
-   做法：这一整段区域去掉毛玻璃，改用一层纯色玻璃底 + 视口基准固定的光晕，
-   三块共用同一套背景，接缝处不再有独立采样，彻底无缝。 */
+/* 残留色差带的真因：首卡是 .section-head-card，与后两块不是同一套底。
+   首卡背景以自身为基准铺渐变，后两块以视口为基准（fixed），交界处必然色差。
+   做法：三块统一改用同一套视口基准（fixed）背景，只保留一层外轮廓。 */
 section.card:has(+ #music-search-entry),
 section#music-search-entry.card,
 section#music-search-results-panel.card {
   border: 0 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background:
+  background-image:
     linear-gradient(135deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.16)),
     radial-gradient(circle at 10% 10%, rgb(34 211 238 / 0.10), transparent 40%),
     radial-gradient(circle at 90% 15%, rgb(167 139 250 / 0.11), transparent 42%),
-    radial-gradient(circle at 75% 90%, rgb(244 114 182 / 0.10), transparent 42%),
-    rgb(255 252 254 / 0.42) !important;
+    radial-gradient(circle at 75% 90%, rgb(244 114 182 / 0.10), transparent 42%) !important;
+  background-color: rgb(255 252 254 / 0.42) !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
   background-attachment: fixed !important;
 }
 section.card:has(+ #music-search-entry) {
