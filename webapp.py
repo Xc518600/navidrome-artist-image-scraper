@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
@@ -2275,10 +2276,22 @@ def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dic
     return {"ok": True, "url": url, "quality": actual_quality, "lx_source": "kw"}
 
 
-def lx_download_song(source: str, song_id: str, title: str, artist: str, quality: str = "128k") -> dict:
-    """解析链接并下载音频到音乐下载目录，返回落盘路径"""
+DOWNLOAD_PROGRESS: dict[str, dict] = {}
+
+
+def _progress_set(ticket: str, **kw):
+    if not ticket:
+        return
+    entry = DOWNLOAD_PROGRESS.setdefault(ticket, {})
+    entry.update(kw)
+
+
+def lx_download_song(source: str, song_id: str, title: str, artist: str, quality: str = "128k", ticket: str = "") -> dict:
+    """解析链接并下载音频到音乐下载目录，返回落盘路径（带进度记到 DOWNLOAD_PROGRESS）"""
+    _progress_set(ticket, stage="resolving", stage_text="正在解析音源链接", percent=2)
     resolved = lx_resolve_song_url(source, song_id, quality=quality)
     if not resolved.get("ok"):
+        _progress_set(ticket, stage="failed", stage_text=str(resolved.get("message") or "解析失败"), percent=100)
         return resolved
     url = resolved["url"]
     ext = "flac" if "flac" in quality else "mp3"
@@ -2298,12 +2311,20 @@ def lx_download_song(source: str, song_id: str, title: str, artist: str, quality
     try:
         session = requests.Session()
         session.trust_env = False
+        _progress_set(ticket, stage="downloading", stage_text="正在下载", percent=5, quality=resolved.get("quality") or quality)
         with session.get(url, stream=True, timeout=60, headers={"User-Agent": "okhttp/3.10.0", "Referer": "https://www.kuwo.cn/"}) as resp:
             resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length") or 0)
+            written = 0
             with open(target, "wb") as fh:
                 for chunk in resp.iter_content(chunk_size=131072):
                     if chunk:
                         fh.write(chunk)
+                        written += len(chunk)
+                        pct = int(written * 100 / total) if total else 50
+                        _progress_set(ticket, percent=max(5, min(99, pct)), downloaded=written,
+                                      total=total, downloaded_text=_format_size_text(written),
+                                      total_text=_format_size_text(total) if total else "未知")
     except Exception as exc:
         try:
             target.unlink(missing_ok=True)
@@ -2314,7 +2335,10 @@ def lx_download_song(source: str, song_id: str, title: str, artist: str, quality
     if size_mb < 0.05:
         target.unlink(missing_ok=True)
         return {"ok": False, "error": "downloaded-file-too-small"}
-    return {"ok": True, "path": str(target), "size_mb": round(size_mb, 2), "quality": quality, "source": resolved.get("lx_source")}
+    _progress_set(ticket, stage="done", stage_text="下载完成", percent=100,
+                  downloaded_text=_format_size_text(target.stat().st_size), total_text=_format_size_text(target.stat().st_size))
+    return {"ok": True, "path": str(target), "size_mb": round(size_mb, 2), "quality": quality,
+            "source": resolved.get("lx_source"), "real_quality": _guess_quality_from_url(url) or quality}
 
 
 def resolve_music_preview(result_id: str, keyword: str = "") -> dict:
@@ -5207,6 +5231,56 @@ def api_lx_sources_delete(source_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/music-lib-download-async")
+def api_music_lib_download_async():
+    """启动下载任务，前端轮询进度"""
+    result_id = str(request.args.get("id") or "").strip()
+    quality = str(request.args.get("quality") or "320k").strip()
+    keyword = str(request.args.get("keyword") or "").strip()
+    if not result_id or ":" not in result_id:
+        return jsonify({"ok": False, "error": "invalid-id"}), 400
+    source, song_id = result_id.split(":", 1)
+    source = source.strip().lower()
+    song_id = song_id.strip()
+    ticket = uuid.uuid4().hex[:16]
+    DOWNLOAD_PROGRESS[ticket] = {"stage": "queued", "stage_text": "排队中", "percent": 0}
+
+    def worker():
+        try:
+            title, artist = "", ""
+            if keyword:
+                found = search_music_by_keyword(keyword, limit=30, sources=[source if source != "tx" else "qq"])
+                for it in found.get("results") or []:
+                    if str(it.get("id") or "") == result_id:
+                        title = str(it.get("title") or "").strip()
+                        artist = str(it.get("artist") or "").strip()
+                        break
+            result = lx_download_song(source, song_id, title=title, artist=artist, quality=quality, ticket=ticket)
+            if result.get("ok"):
+                path = result.pop("path", "")
+                DOWNLOAD_PROGRESS[ticket].update({"stage": "done", "percent": 100, "stage_text": "下载完成",
+                                                  "file": path, "size_mb": result.get("size_mb"),
+                                                  "real_quality": result.get("real_quality"),
+                                                  "requested_quality": quality})
+            else:
+                DOWNLOAD_PROGRESS[ticket].update({"stage": "failed", "percent": 100,
+                                                  "stage_text": str(result.get("message") or result.get("error") or "下载失败")})
+        except Exception as exc:
+            DOWNLOAD_PROGRESS[ticket].update({"stage": "failed", "percent": 100, "stage_text": f"下载异常：{exc}"})
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"ok": True, "ticket": ticket, "quality": quality})
+
+
+@app.route("/api/music-download-progress")
+def api_music_download_progress():
+    ticket = str(request.args.get("ticket") or "").strip()
+    entry = DOWNLOAD_PROGRESS.get(ticket)
+    if not entry:
+        return jsonify({"ok": False, "error": "unknown-ticket"}), 404
+    return jsonify({"ok": True, **entry})
+
+
 @app.route("/api/music-lib-download")
 def api_music_lib_download():
     """落雪音源下载：解析真实链接并落盘到音乐目录"""
@@ -5230,6 +5304,7 @@ def api_music_lib_download():
     result = lx_download_song(source, song_id, title=title, artist=artist, quality=quality)
     if not result.get("ok"):
         return jsonify(result), 400
+    result["requested_quality"] = quality
     audio_path = result.pop("path")
     scrape_result = {}
     try:

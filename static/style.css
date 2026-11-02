@@ -889,3 +889,54 @@ summary:hover { color: var(--text); }
   #settings-lyrics-search-button { order: 3; }
   .settings-detail-actions .settings-back-home-button { order: 4; }
 }
+
+.result-download {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 132px;
+}
+.quality-chips {
+  display: flex;
+  gap: 4px;
+}
+.quality-chip {
+  flex: 1;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #ddd);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: .65;
+  white-space: nowrap;
+}
+.quality-chip.active {
+  border-color: var(--accent, #e46a9a);
+  color: var(--accent, #e46a9a);
+  background: rgba(228, 106, 154, .1);
+  opacity: 1;
+  font-weight: 600;
+}
+.download-progress {
+  display: none;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.dl-text { display: block; opacity: .8; }
+.dl-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .08);
+  overflow: hidden;
+  margin-top: 3px;
+}
+.dl-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent, #e46a9a);
+  transition: width .3s ease;
+}
