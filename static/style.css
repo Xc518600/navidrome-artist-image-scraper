@@ -1111,20 +1111,21 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* 色差原因：首页 .card 的白色渐变是相对自身小卡片铺的（尺寸小 → 白色集中在上左角
-     一小块，整体偏透 → 看到深粉壁纸）。这块面板很高，同样百分比的白渐变被拉满整块，
-     白色被摊平铺开，于是明显更白。
-     这里把白色渐变压缩到顶部一小段（48% 高度内衰减完），让白只集中在顶部，
-     下部回到透明，透出壁纸的粉调，观感与首页一致。 */
+  /* 白过头的根因：首页 .card 是 200px 级的小卡片，白渐变是覆盖整张卡的比例值；
+     这块面板高 800px+，同样的 32%→14% 白被摊到整个高度，等于整块盖了一层白纱。
+     修正：与首页等效的做法是——白渐变只占顶部一小段（按像素换算 ≈ 一张卡片的高度），
+     其余区域完全透明，露出壁纸的深粉。透明度用 --card（34% 白）保持一致。 */
   background:
-    linear-gradient(170deg, rgb(255 255 255 / 0.34) 0%, rgb(255 255 255 / 0.14) 16%, rgb(255 255 255 / 0.05) 40%, transparent 62%),
-    radial-gradient(circle at 8% 4%, rgb(34 211 238 / 0.15), transparent 18%),
-    radial-gradient(circle at 92% 6%, rgb(167 139 250 / 0.18), transparent 20%),
-    radial-gradient(circle at 76% 92%, rgb(244 114 182 / 0.12), transparent 22%),
+    linear-gradient(180deg,
+      rgb(255 255 255 / 0.30) 0px,
+      rgb(255 255 255 / 0.16) 90px,
+      rgb(255 255 255 / 0.04) 200px,
+      rgb(255 255 255 / 0) 300px),
+    radial-gradient(circle at 6% 40px, rgb(34 211 238 / 0.16), transparent 160px),
+    radial-gradient(circle at 94% 60px, rgb(167 139 250 / 0.18), transparent 180px),
+    radial-gradient(circle at 78% calc(100% - 40px), rgb(244 114 182 / 0.14), transparent 190px),
     var(--card);
   background-repeat: no-repeat;
-  background-size: 100% 100%;
-  background-attachment: fixed;
   box-shadow: var(--shadow);
 }
 .search-panel > .card,
