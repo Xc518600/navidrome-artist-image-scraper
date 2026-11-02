@@ -1224,16 +1224,7 @@ async function downloadToLibrary(item, keyword, button) {
       if (p.stage === 'done') {
         finished = true;
         const realQ = String(p.real_quality || '').toLowerCase();
-        const gotFlac = realQ.includes('flac');
-        const wantFlac = quality === 'flac';
-        let doneText;
-        if (gotFlac) {
-          doneText = `完成 · 真无损 FLAC · ${p.size_mb}MB`;
-        } else if (wantFlac) {
-          doneText = `完成 · 音源只给到 ${realQ ? realQ.toUpperCase() : '普通音质'} · ${p.size_mb}MB（未拿到真无损）`;
-        } else {
-          doneText = `完成 · ${realQ ? realQ.toUpperCase() : qualityLabel} · ${p.size_mb}MB`;
-        }
+        doneText = `完成 · ${realQ.includes('flac') ? '真无损 FLAC' : (realQ ? realQ.toUpperCase() : qualityLabel)} · ${p.size_mb}MB`;
         showProgress(doneText, 100);
         if (wantFlac && !gotFlac) prog.classList.add('dl-warn');
         if (btn) { btn.disabled = false; btn.textContent = '再次下载'; }

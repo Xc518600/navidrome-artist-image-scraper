@@ -2298,6 +2298,15 @@ def lx_download_song(source: str, song_id: str, title: str, artist: str, quality
         return resolved
     url = resolved["url"]
     real_q = str(resolved.get("real_quality") or _guess_quality_from_url(url) or "")
+    want_lossless = str(quality or "").lower().startswith("flac")
+    got_lossless = "flac" in real_q
+    if want_lossless and not got_lossless:
+        # 用户要无损但音源只给到有损：拒绝落盘，避免把 M4A 冒充成无损入库
+        _progress_set(ticket, stage="failed", percent=100,
+                      stage_text=f"音源只提供 {real_q.upper() or '有损'}，无法获取无损 FLAC，已取消下载（未写入音乐库）",
+                      reason="lossless-unavailable", real_quality=real_q)
+        return {"ok": False, "error": "lossless-unavailable",
+                "message": f"音源只提供 {real_q.upper() or '有损'} 文件，没有真无损。已取消下载，未写入音乐库。可改选「高品 320k」下载。"}
     if "flac" in real_q:
         ext = "flac"
     elif real_q in ("m4a", "aac"):
