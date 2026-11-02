@@ -409,6 +409,17 @@ h3 { font-size: 14px; font-weight: 600; }
   flex-shrink: 0;
 }
 .result-row .result-actions .btn { white-space: nowrap; min-width: 84px; }
+.result-row .result-formats {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8a7f92;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-row .result-formats:empty { display: none; }
+
 @media (max-width: 520px) {
   .result-row { grid-template-columns: 1fr; }
   .result-row .result-actions { flex-direction: row; flex-wrap: wrap; }

@@ -191,7 +191,7 @@ async function callMusicUrl(payload) {
   // 兼容返回字符串或 {url}
   if (typeof result === 'string') return result;
   if (result && typeof result === 'object') {
-    if (result.url) return result.url;
+    if (result.url) return result;
     if (result.code && result.msg) throw new Error(String(result.msg));
   }
   throw new Error('script-empty-result');
@@ -216,10 +216,20 @@ if (infoMode) {
     let req;
     try { req = JSON.parse(line); } catch (e) { return; }
     try {
-      const url = await callMusicUrl(req);
-      process.stdout.write(JSON.stringify({ id: req.id, ok: true, url }) + '\n');
+      const result = await callMusicUrl(req);
+      if (typeof result === 'string') {
+        process.stdout.write(JSON.stringify({ id: req.id, ok: true, url: result }) + '\n');
+      } else {
+        const out = { id: req.id, ok: true, url: (result && result.url) || '' };
+        for (const k of ['type', 'size', 'quality', 'bitrate', 'format']) {
+          if (result && result[k] !== undefined) out[k] = result[k];
+        }
+        process.stdout.write(JSON.stringify(out) + '\n');
+      }
     } catch (e) {
       process.stdout.write(JSON.stringify({ id: req.id, ok: false, error: String(e && e.message || e) }) + '\n');
     }
+    // 单次请求处理完即退出，避免脚本内部的定时器/长连接让进程挂住
+    setTimeout(() => process.exit(0), 200);
   });
 }

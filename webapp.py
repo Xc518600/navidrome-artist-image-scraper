@@ -2184,6 +2184,38 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
     return {"ok": False, "error": "no-source-script-resolved", "message": f"{source.upper()} 音源解析失败（免费音源接口不稳定，可能已失效），可切换其它音源搜索同首歌重试"}
 
 
+def lx_resolve_with_details(source: str, song_id: str, quality: str = "320k") -> dict:
+    """解析下载链接并附带实际音质、文件体积信息"""
+    resolved = lx_resolve_song_url(source, song_id, quality)
+    if not resolved.get("ok"):
+        return resolved
+    url = resolved.get("url") or ""
+    size_bytes = 0
+    try:
+        head = requests.head(url, timeout=15, allow_redirects=True, headers={"User-Agent": "okhttp/3.10.0"})
+        size_bytes = int(head.headers.get("Content-Length") or 0)
+        if not size_bytes:
+            probe = requests.get(url, stream=True, timeout=15, headers={"User-Agent": "okhttp/3.10.0"})
+            size_bytes = int(probe.headers.get("Content-Length") or 0)
+            probe.close()
+    except Exception:
+        size_bytes = 0
+    resolved["size_bytes"] = size_bytes
+    resolved["size_text"] = _format_size_text(size_bytes)
+    return resolved
+
+
+def _format_size_text(size_bytes: int) -> str:
+    size_bytes = int(size_bytes or 0)
+    if size_bytes <= 0:
+        return "大小未知"
+    if size_bytes >= 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 ** 3):.2f} GB"
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 ** 2):.1f} MB"
+    return f"{max(1, size_bytes // 1024)} KB"
+
+
 def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dict:
     """解析下载链接：只走已添加的音源脚本，未添加音源时提示"""
     if not lx_list_sources():
@@ -5009,6 +5041,24 @@ def api_scan_count():
     return jsonify(data)
 
 
+def lx_probe_song_formats(source: str, song_id: str) -> dict:
+    """探测各音质能否解析并取到文件体积（用于结果列表展示）"""
+    formats = []
+    for quality, label in (("320k", "320k MP3"), ("flac", "无损 FLAC")):
+        try:
+            info = lx_resolve_with_details(source, song_id, quality)
+        except Exception:
+            continue
+        if info.get("ok"):
+            formats.append({
+                "quality": quality,
+                "label": label,
+                "size_text": info.get("size_text") or "大小未知",
+                "size_bytes": int(info.get("size_bytes") or 0),
+            })
+    return {"ok": bool(formats), "formats": formats}
+
+
 @app.route("/api/music-search")
 def api_music_search():
     keyword = str(request.args.get("q") or request.args.get("keyword") or "").strip()
@@ -5017,6 +5067,17 @@ def api_music_search():
     sources = [item.strip().lower() for item in raw_sources.split(",") if item.strip()]
     result = search_music_by_keyword(keyword, limit=limit, sources=sources)
     return jsonify(result), (200 if result.get("ok") else 400)
+
+
+@app.route("/api/music-probe-formats")
+def api_music_probe_formats():
+    """按需探测某首歌可下载的音质与文件体积"""
+    result_id = str(request.args.get("id") or "").strip()
+    if ":" not in result_id:
+        return jsonify({"ok": False, "error": "invalid-id"}), 400
+    source, song_id = result_id.split(":", 1)
+    info = lx_probe_song_formats(source.strip().lower(), song_id.strip())
+    return jsonify(info), (200 if info.get("ok") else 400)
 
 
 @app.route("/api/music-preview")

@@ -1029,6 +1029,12 @@ function renderMusicSearchResults(results, keyword = '') {
       main.appendChild(badge);
     }
 
+    const formatsLine = document.createElement('span');
+    formatsLine.className = 'result-formats muted';
+    formatsLine.dataset.resultId = item.id || '';
+    formatsLine.textContent = '音质：检测中...';
+    main.appendChild(formatsLine);
+
     li.appendChild(main);
 
     const actionWrap = document.createElement('div');
@@ -1080,6 +1086,32 @@ function renderMusicSearchResults(results, keyword = '') {
     li.appendChild(actionWrap);
     list.appendChild(li);
   }
+  probeResultFormats(rows);
+}
+
+async function probeResultFormats(rows) {
+  const queue = rows.filter((item) => item && item.id && String(item.id).includes(':')).slice(0, 12);
+  let index = 0;
+  const worker = async () => {
+    while (index < queue.length) {
+      const item = queue[index++];
+      const el = document.querySelector(`.result-formats[data-result-id="${item.id}"]`);
+      if (!el) continue;
+      try {
+        const res = await fetch(`/api/music-probe-formats?id=${encodeURIComponent(item.id)}`);
+        const data = await res.json();
+        const formats = data.formats || [];
+        if (formats.length) {
+          el.textContent = '音质：' + formats.map((f) => `${f.label} ${f.size_text}`).join(' · ');
+        } else {
+          el.textContent = '音质：当前音源无法解析';
+        }
+      } catch (err) {
+        el.textContent = '音质：检测失败';
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
 }
 
 function openLxSourceModal() {
