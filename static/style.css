@@ -1102,41 +1102,57 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   不透明度对齐首页玻璃卡（--card 34% 白），保持全站观感一致：
-   缝隙靠零外边距 + 去相接边框解决，色差靠视口基准 fixed 渐变解决。 */
+   分割线的成因：每张卡各自有 border（1px 半透明白线）。
+   即使去掉上下相接的边框，只要卡片之间有 1px 重叠或空隙，就仍会看到线。
+   做法：三块完全不画边框，整块区域的外框由 ::before/::after 单独绘制一层。 */
 section.card:has(+ #music-search-entry),
 section#music-search-entry.card,
 section#music-search-results-panel.card {
+  border: 0 !important;
   background-attachment: fixed !important;
   backdrop-filter: blur(6px) saturate(145%) !important;
   -webkit-backdrop-filter: blur(6px) saturate(145%) !important;
 }
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
-  border-bottom: 0 !important;
-  border-bottom-left-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
+  border-radius: var(--radius) var(--radius) 0 0 !important;
   padding-bottom: 12px !important;
-}
-section#music-search-entry.card,
-section#music-search-results-panel.card {
-  margin: 0 !important;
-  padding-left: 20px !important;
-  padding-right: 20px !important;
-  border-left: 1px solid var(--line) !important;
-  border-right: 1px solid var(--line) !important;
-  border-top: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  position: relative !important;
+  z-index: 2;
 }
 section#music-search-entry.card {
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
+  margin: 0 !important;
+  padding: 4px 20px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  position: relative !important;
+  z-index: 1;
 }
 section#music-search-results-panel.card {
-  padding-top: 8px !important;
-  padding-bottom: 18px !important;
-  border-bottom: 1px solid var(--line) !important;
-  border-bottom-left-radius: var(--radius) !important;
-  border-bottom-right-radius: var(--radius) !important;
+  margin: 0 !important;
+  padding: 8px 20px 18px !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
+  box-shadow: none !important;
+  position: relative !important;
+  z-index: 1;
+}
+/* 整块区域的外框：只画外轮廓，不画内部分割线 */
+section.card:has(+ #music-search-entry)::after,
+section#music-search-results-panel.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  pointer-events: none;
+}
+section.card:has(+ #music-search-entry)::after {
+  border-top: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  bottom: -1px;
+}
+section#music-search-results-panel.card::before {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+  top: -1px;
 }
