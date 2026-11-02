@@ -1111,14 +1111,19 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* 与首页 .card 使用完全相同的玻璃公式（颜色/透明度/光晕位置全部一致），
-     只把毛玻璃换成视口基准：首页单卡不会拼缝，这里靠 fixed 保证内部连续。 */
+  /* 色差原因：首页 .card 的白色渐变是相对自身小卡片铺的（尺寸小 → 白色集中在上左角
+     一小块，整体偏透 → 看到深粉壁纸）。这块面板很高，同样百分比的白渐变被拉满整块，
+     白色被摊平铺开，于是明显更白。
+     这里把白色渐变压缩到顶部一小段（48% 高度内衰减完），让白只集中在顶部，
+     下部回到透明，透出壁纸的粉调，观感与首页一致。 */
   background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.14)),
-    radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.15), transparent 34%),
-    radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.18), transparent 38%),
-    radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.12), transparent 38%),
+    linear-gradient(170deg, rgb(255 255 255 / 0.34) 0%, rgb(255 255 255 / 0.14) 16%, rgb(255 255 255 / 0.05) 40%, transparent 62%),
+    radial-gradient(circle at 8% 4%, rgb(34 211 238 / 0.15), transparent 18%),
+    radial-gradient(circle at 92% 6%, rgb(167 139 250 / 0.18), transparent 20%),
+    radial-gradient(circle at 76% 92%, rgb(244 114 182 / 0.12), transparent 22%),
     var(--card);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   background-attachment: fixed;
   box-shadow: var(--shadow);
 }
