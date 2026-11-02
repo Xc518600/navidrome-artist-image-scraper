@@ -940,3 +940,5 @@ summary:hover { color: var(--text); }
   background: var(--accent, #e46a9a);
   transition: width .3s ease;
 }
+
+.download-progress.dl-warn .dl-text { color: #c2542a; }

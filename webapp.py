@@ -2192,7 +2192,10 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
                 except Exception as exc:
                     print(f"[lx-source] url probe failed for {item['id']} {src_key}: {exc}", file=sys.stderr, flush=True)
                     continue
+                real_q = _guess_quality_from_url(url)
                 return {"ok": True, "url": url, "quality": use_quality,
+                        "requested_quality": quality, "real_quality": real_q or use_quality,
+                        "downgraded": bool(real_q) and real_q != quality,
                         "lx_source": src_key, "via_script": item["id"]}
             print(f"[lx-source] resolve rejected by {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
     return {"ok": False, "error": "no-source-script-resolved", "message": f"{source.upper()} 音源解析失败（免费音源接口不稳定，可能已失效），可切换其它音源搜索同首歌重试"}
@@ -2294,7 +2297,13 @@ def lx_download_song(source: str, song_id: str, title: str, artist: str, quality
         _progress_set(ticket, stage="failed", stage_text=str(resolved.get("message") or "解析失败"), percent=100)
         return resolved
     url = resolved["url"]
-    ext = "flac" if "flac" in quality else "mp3"
+    real_q = str(resolved.get("real_quality") or _guess_quality_from_url(url) or "")
+    if "flac" in real_q:
+        ext = "flac"
+    elif real_q in ("m4a", "aac"):
+        ext = "m4a"
+    else:
+        ext = "mp3"
     safe_title = re.sub(r"[^\w\-. \u4e00-\u9fff]+", "_", str(title or "song")).strip("._ ") or "song"
     safe_artist = re.sub(r"[^\w\-. \u4e00-\u9fff]+", "_", str(artist or "")).strip("._ ")
     base_name = f"{safe_artist} - {safe_title}" if safe_artist else safe_title
