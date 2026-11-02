@@ -1264,13 +1264,18 @@ async function searchMusicCatalog() {
     const sourcesParam = chosen ? chosen : 'qq,kugou,kuwo,netease';
     let res = null;
     let lastError = null;
-    for (let attempt = 0; attempt < 2 && !res; attempt++) {
+    for (let attempt = 0; attempt < 3 && !res; attempt++) {
       try {
-        res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`, { cache: 'no-store' });
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 45000);
+        try {
+          res = await fetch(`/api/music-search?q=${encodeURIComponent(keyword)}&sources=${encodeURIComponent(sourcesParam)}`, { cache: 'no-store', signal: ctrl.signal });
+        } finally { clearTimeout(timer); }
       } catch (err) {
         lastError = err;
-        // 首次失败多半是网络抖动/连接被重置，稍等重试一次
-        await new Promise((r) => setTimeout(r, 800));
+        res = null;
+        // 偶发断链/超时：间隔递增后重试
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
       }
     }
     if (!res) {
