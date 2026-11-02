@@ -942,3 +942,62 @@ summary:hover { color: var(--text); }
 }
 
 .download-progress.dl-warn .dl-text { color: #c2542a; }
+
+/* ---------- 无内嵌歌曲列表 ---------- */
+.missing-art-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.missing-art-item {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .35);
+  justify-content: initial;
+}
+.missing-art-main { min-width: 0; }
+.missing-art-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.missing-art-path {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: .62;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.missing-art-note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: .72;
+}
+.missing-art-actions { flex-shrink: 0; }
+.missing-art-empty {
+  padding: 10px 4px;
+  font-size: 13px;
+  opacity: .7;
+}
+@media (max-width: 520px) {
+  .missing-art-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .missing-art-actions .btn { width: 100%; }
+}

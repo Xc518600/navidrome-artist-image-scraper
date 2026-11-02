@@ -281,18 +281,22 @@
   </section>
   <section class="card" id="missing-album-art">
     <h2>无内嵌歌曲</h2>
-    <ul class="simple-list compact-list">
+    <ul class="missing-art-list">
     {% for item in data.no_embedded_album_art_song_rows %}
-      <li>
-        <strong>{{ item.title }}</strong><br>
-        <span class="muted">路径：{{ item.source_file }}</span><br>
-        {% if item.mixed_folder %}
-        <span class="muted">状态：所在目录是 mixed folder，目录级专辑图任务会跳过，但这首歌本身确实没有内嵌封面。</span><br>
-        {% endif %}
-        <button type="button" class="btn btn-small" onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }})'>直接刮削这首歌的内嵌封面</button>
+      <li class="missing-art-item">
+        <div class="missing-art-main">
+          <div class="missing-art-title">{{ item.title }}</div>
+          <div class="missing-art-path" title="{{ item.source_file }}">{{ item.source_file }}</div>
+          {% if item.mixed_folder %}
+          <div class="missing-art-note">所在目录是 mixed folder，目录级任务会跳过，但这首歌本身确实没有内嵌封面</div>
+          {% endif %}
+        </div>
+        <div class="missing-art-actions">
+          <button type="button" class="btn btn-small btn-primary" onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }})'>刮削封面</button>
+        </div>
       </li>
     {% else %}
-      <li>没有发现无内嵌封面的歌曲</li>
+      <li class="missing-art-empty">没有发现无内嵌封面的歌曲</li>
     {% endfor %}
     </ul>
   </section>
