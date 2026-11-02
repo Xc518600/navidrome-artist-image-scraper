@@ -461,15 +461,18 @@ h3 { font-size: 14px; font-weight: 600; }
 /* 移动端：下载块与来源页按钮统一为固定 38px 高，不再被内容撑高 */
 @media (max-width: 520px) {
   .result-row .result-actions { align-items: flex-start; }
-  .result-row .result-actions > .result-download { align-self: flex-start; }
+  /* 有「来源页」时也强制两列等分，保证与单按钮情况像素对齐 */
+  .result-row .result-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .result-row .result-actions > .result-download,
+  .result-row .result-actions > a.btn,
+  .result-row .result-actions > .btn { width: 100%; max-width: none; flex: none; min-width: 0; }
   .result-row .result-actions > .result-download > .btn,
   .result-row .result-actions > a.btn { height: 38px; min-height: 38px; }
   /* 没有「来源页」时，下载块固定为两列中的第一列宽度，与有来源页时完全一致 */
   .result-row .result-actions > .result-download:only-child {
-    flex: 0 0 calc((100% - 8px) / 2);
-    width: calc((100% - 8px) / 2);
-    max-width: calc((100% - 8px) / 2);
-    margin-right: auto;
+    grid-column: 1 / 2;
+    width: 100%;
+    max-width: none;
   }
   .result-row .result-actions > a.btn,
   .result-row .result-actions > .btn { box-sizing: border-box; }
