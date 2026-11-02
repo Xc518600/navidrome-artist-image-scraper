@@ -367,6 +367,55 @@ h3 { font-size: 14px; font-weight: 600; }
 .compact-list li { padding: 7px 4px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
 .compact-list li:last-child { border-bottom: none; }
 
+/* 搜索/歌词结果卡片：横向排版，避免手机上竖排挤压 */
+.result-row {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px !important;
+}
+.result-row .result-main { min-width: 0; }
+.result-row .result-title {
+  font-size: 14px;
+  font-weight: 600;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-row .result-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-row .result-badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--line-soft, #f0eef2);
+  color: var(--muted, #777);
+}
+.result-row .result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.result-row .result-actions .btn { white-space: nowrap; min-width: 84px; }
+@media (max-width: 520px) {
+  .result-row { grid-template-columns: 1fr; }
+  .result-row .result-actions { flex-direction: row; flex-wrap: wrap; }
+  .result-row .result-actions .btn { min-width: 0; flex: 1 1 auto; }
+}
+
+
 .artist-row, .export-row, .roadmap-item {
   display: flex;
   align-items: center;

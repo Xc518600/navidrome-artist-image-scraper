@@ -272,7 +272,7 @@
       <h3>搜索结果</h3>
       <span class="settings-badge settings-badge-secondary" id="music-search-count-badge">0 首</span>
     </div>
-    <ul class="simple-list compact-list" id="music-search-results-list">
+    <ul class="simple-list result-list" id="music-search-results-list">
       <li>还没有搜索结果</li>
     </ul>
   </section>
@@ -1007,34 +1007,41 @@ function renderMusicSearchResults(results, keyword = '') {
 
   for (const item of rows) {
     const li = document.createElement('li');
-    const strong = document.createElement('strong');
-    strong.textContent = item.title || '未知歌曲';
-    li.appendChild(strong);
-    li.appendChild(document.createElement('br'));
+    li.className = 'result-row';
 
-    const meta = document.createElement('span');
-    meta.className = 'muted';
-    meta.textContent = `歌手：${item.artist || '-'} ｜ 专辑：${item.album || '-'} ｜ 来源：${item.source_label || item.source || '-'} ｜ 时长：${item.duration_text || '--:--'}`;
-    li.appendChild(meta);
-    li.appendChild(document.createElement('br'));
+    const main = document.createElement('div');
+    main.className = 'result-main';
 
-    const previewHint = document.createElement('span');
-    previewHint.className = 'muted';
-    previewHint.textContent = `试听状态：${formatMusicPreviewStatus(item)}${item.preview_reason ? ` ｜ ${item.preview_reason}` : ''}`;
-    li.appendChild(previewHint);
-    li.appendChild(document.createElement('br'));
+    const titleEl = document.createElement('span');
+    titleEl.className = 'result-title';
+    titleEl.textContent = item.title || '未知歌曲';
+    main.appendChild(titleEl);
+
+    const metaEl = document.createElement('span');
+    metaEl.className = 'result-meta';
+    metaEl.textContent = `${item.artist || '-'} · ${item.album || '-'} · ${item.source_label || item.source || '-'} · ${item.duration_text || '--:--'}`;
+    main.appendChild(metaEl);
+
+    if (!item.preview_available) {
+      const badge = document.createElement('span');
+      badge.className = 'result-badge';
+      badge.textContent = formatMusicPreviewStatus(item);
+      main.appendChild(badge);
+    }
+
+    li.appendChild(main);
 
     const actionWrap = document.createElement('div');
-    actionWrap.className = 'settings-detail-actions';
-    actionWrap.style.marginTop = '8px';
+    actionWrap.className = 'result-actions';
 
-    const playButton = document.createElement('button');
-    playButton.type = 'button';
-    playButton.className = 'btn btn-small';
-    playButton.textContent = item.preview_available ? '试听' : formatMusicPreviewStatus(item);
-    playButton.disabled = !item.preview_available;
-    playButton.onclick = () => playMusicPreview(item, keyword);
-    actionWrap.appendChild(playButton);
+    if (item.preview_available) {
+      const playButton = document.createElement('button');
+      playButton.type = 'button';
+      playButton.className = 'btn btn-small';
+      playButton.textContent = '试听';
+      playButton.onclick = () => playMusicPreview(item, keyword);
+      actionWrap.appendChild(playButton);
+    }
 
     if (item.download_available) {
       const downloadLink = document.createElement('a');
@@ -1048,7 +1055,7 @@ function renderMusicSearchResults(results, keyword = '') {
       const lxButton = document.createElement('button');
       lxButton.type = 'button';
       lxButton.className = 'btn btn-small btn-primary';
-      lxButton.textContent = '下载到音乐库';
+      lxButton.textContent = '下载';
       lxButton.onclick = () => downloadToLibrary(item, keyword);
       actionWrap.appendChild(lxButton);
     } else if (item.source === 'kuwo' || item.source === 'qq' || item.source === 'kugou' || item.source === 'netease') {
@@ -1056,7 +1063,7 @@ function renderMusicSearchResults(results, keyword = '') {
       disabled.type = 'button';
       disabled.className = 'btn btn-small';
       disabled.disabled = true;
-      disabled.textContent = item.preview_reason && String(item.source || '') === 'netease' ? '当前不可下载' : (item.source === 'itunes' ? 'iTunes 仅试听' : '需添加音源后下载');
+      disabled.textContent = '不可下载';
       actionWrap.appendChild(disabled);
     }
 
@@ -1066,7 +1073,7 @@ function renderMusicSearchResults(results, keyword = '') {
       extLink.href = item.external_url;
       extLink.target = '_blank';
       extLink.rel = 'noopener';
-      extLink.textContent = '打开来源页';
+      extLink.textContent = '来源页';
       actionWrap.appendChild(extLink);
     }
 
