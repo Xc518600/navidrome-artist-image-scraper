@@ -1135,8 +1135,12 @@ summary:hover { color: var(--text); }
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
-.search-panel > .card,
-.search-panel > .card:hover {
+/* 全站统一：面板内所有层级的卡片（含统计小卡、侧栏、嵌套卡）一律透明无边框，
+   整页只有面板一层背景一条外框，卡片之间不存在任何分割线。 */
+.search-panel .card,
+.search-panel .card:hover,
+.search-panel .card.success,
+.search-panel .card.danger {
   background: transparent !important;
   background-image: none !important;
   border: 0 !important;
