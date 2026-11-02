@@ -464,6 +464,11 @@ h3 { font-size: 14px; font-weight: 600; }
   .result-row .result-actions > .result-download { align-self: flex-start; }
   .result-row .result-actions > .result-download > .btn,
   .result-row .result-actions > a.btn { height: 38px; min-height: 38px; }
+  /* 没有「来源页」时，下载按钮保持与有来源页时相同的宽度，不撑满整行 */
+  .result-row .result-actions > .result-download:only-child {
+    flex: 0 0 calc(50% - 4px);
+    max-width: calc(50% - 4px);
+  }
 }
 
 
