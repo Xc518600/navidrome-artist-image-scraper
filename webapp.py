@@ -2100,21 +2100,25 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
             try:
                 proc = subprocess.run(
                     ["node", str(LX_RUNNER_SCRIPT), str(script_path)],
-                    input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=45,
+                    input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=75,
                 )
-            except Exception:
+            except Exception as exc:
+                print(f"[lx-source] runner failed for {item['id']} {src_key}: {exc}", file=sys.stderr, flush=True)
                 continue
             out = (proc.stdout or "").strip()
             if not out:
+                print(f"[lx-source] empty output from {item['id']} {src_key}, stderr: {(proc.stderr or '')[:200]}", file=sys.stderr, flush=True)
                 continue
             try:
                 data = json.loads(out.splitlines()[-1])
             except Exception:
+                print(f"[lx-source] bad output from {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
                 continue
             if data.get("ok") and data.get("url"):
                 return {"ok": True, "url": data["url"], "quality": use_quality,
                         "lx_source": src_key, "via_script": item["id"]}
-    return {"ok": False, "error": "no-source-script-resolved", "message": "已添加的音源都无法解析该歌曲，请更换或更新音源脚本"}
+            print(f"[lx-source] resolve rejected by {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
+    return {"ok": False, "error": "no-source-script-resolved", "message": "已添加的音源都无法解析该歌曲（接口可能暂时超时，可稍后重试；若持续失败请更换或更新音源脚本）"}
 
 
 def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dict:
