@@ -5166,16 +5166,19 @@ def lx_probe_song_formats(source: str, song_id: str) -> dict:
     """探测各音质真实可下载的档位与体积（与实际下载共用同一解析路径）"""
     formats = []
     seen_sig = {}
-    for quality, label in (("320k", "320k MP3"), ("flac", "无损 FLAC")):
-        info = None
-        for attempt in range(2):
-            try:
-                info = lx_resolve_song_url(source, song_id, quality)
-            except Exception:
-                info = None
-            if info and info.get("ok"):
-                break
-            info = None
+    # 320k 与 无损 并发解析，单个档位只试 1 次（失败由前端重试，避免服务端二次串行等待）
+    def resolve_one(quality: str):
+        try:
+            info = lx_resolve_song_url(source, song_id, quality, attempts=1)
+        except Exception:
+            return quality, None
+        return quality, (info if info and info.get("ok") else None)
+
+    wanted = (("320k", "320k MP3"), ("flac", "无损 FLAC"))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        resolved_map = dict(pool.map(resolve_one, [q for q, _ in wanted]))
+    for quality, label in wanted:
+        info = resolved_map.get(quality)
         if not info:
             continue
         url = str(info.get("url") or "")

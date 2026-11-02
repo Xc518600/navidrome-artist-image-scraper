@@ -1094,7 +1094,8 @@ async function probeResultFormats(rows) {
       el.textContent = '音质：' + parts.join(' · ');
     }
   };
-  await Promise.all([worker(), worker(), worker()]);
+  // 并发数提高：每行独立请求，最多同时 6 个，探测更快
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
 }
 
 function openLxSourceModal() {
