@@ -2028,7 +2028,9 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
         item["lx_key"] = lx_key
 
     # 排序：先按匹配分（QQ 搜索为主源），再用预览/可下载做次级排序，避免网易云翻唱靠"可试听"挤到榜首
-    results.sort(key=lambda item: (-int(item.get("score") or 0), -int(item.get("lx_download_available") or 0), -int(item.get("preview_available") or 0), item.get("source") or "", item.get("title") or ""))
+    # 同分时让 QQ 主源优先（QQ 原唱覆盖最全），其次其他源
+    _source_priority = {"qq": 0, "kugou": 1, "netease": 2, "kuwo": 3, "itunes": 4}
+    results.sort(key=lambda item: (-int(item.get("score") or 0), _source_priority.get(str(item.get("source") or "").lower(), 9), -int(item.get("lx_download_available") or 0), -int(item.get("preview_available") or 0), item.get("title") or ""))
     return {"ok": True, "keyword": keyword, "results": results[:limit], "errors": errors, "lx_sources_count": len(lx_declared)}
 
 
