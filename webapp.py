@@ -2115,7 +2115,21 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
                 print(f"[lx-source] bad output from {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
                 continue
             if data.get("ok") and data.get("url"):
-                return {"ok": True, "url": data["url"], "quality": use_quality,
+                url = str(data["url"])
+                # 预检链接有效性：死链不返回，继续试下一个音源
+                try:
+                    check_session = requests.Session()
+                    check_session.trust_env = False
+                    probe = check_session.get(url, stream=True, timeout=20,
+                                              headers={"User-Agent": "okhttp/3.10.0", "Referer": "https://www.kuwo.cn/"})
+                    probe.close()
+                    if probe.status_code != 200:
+                        print(f"[lx-source] dead url from {item['id']} {src_key}: HTTP {probe.status_code}", file=sys.stderr, flush=True)
+                        continue
+                except Exception as exc:
+                    print(f"[lx-source] url probe failed for {item['id']} {src_key}: {exc}", file=sys.stderr, flush=True)
+                    continue
+                return {"ok": True, "url": url, "quality": use_quality,
                         "lx_source": src_key, "via_script": item["id"]}
             print(f"[lx-source] resolve rejected by {item['id']} {src_key}: {out[:200]}", file=sys.stderr, flush=True)
     return {"ok": False, "error": "no-source-script-resolved", "message": f"{source.upper()} 音源解析失败（免费音源接口不稳定，可能已失效），可切换其它音源搜索同首歌重试"}
