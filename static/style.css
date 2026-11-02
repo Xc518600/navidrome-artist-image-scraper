@@ -1131,10 +1131,10 @@ summary:hover { color: var(--text); }
      这里去掉白渐变，只留 var(--card) 34% 白 + 光晕，毛玻璃保持 6px 与首页一致，
      壁纸透出程度即与首页卡片相同。 */
   background:
-    radial-gradient(circle at 8% 40px, rgb(34 211 238 / 0.10), transparent 220px),
-    radial-gradient(circle at 92% 60px, rgb(167 139 250 / 0.10), transparent 240px),
-    radial-gradient(circle at 76% calc(100% - 40px), rgb(244 114 182 / 0.08), transparent 240px),
-    var(--card);
+    radial-gradient(circle at 8% 40px, rgb(34 211 238 / 0.08), transparent 220px),
+    radial-gradient(circle at 92% 60px, rgb(167 139 250 / 0.08), transparent 240px),
+    radial-gradient(circle at 76% calc(100% - 40px), rgb(244 114 182 / 0.06), transparent 240px),
+    rgba(255, 255, 255, 0.26);
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px) saturate(145%);
   -webkit-backdrop-filter: blur(6px) saturate(145%);
