@@ -229,7 +229,7 @@
       <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
-    <div class="hint" id="music-search-summary">输入关键词后开始搜索。添加音源后搜索结果可直接下载（默认用内置酷我直连，添加音源脚本后支持更多源与更高音质）。</div>
+    <div class="hint" id="music-search-summary">输入关键词后开始搜索。点击「音源」按钮添加落雪音源脚本后即可下载（未添加音源时仅试听）。</div>
   </section>
 
   <section class="card" id="music-preview-panel" style="display:none;">
@@ -1086,7 +1086,7 @@ async function refreshLxSourceList() {
     if (!sources.length) {
       const li = document.createElement('li');
       li.className = 'muted';
-      li.textContent = '还没有添加音源，内置酷我直连可用。';
+      li.textContent = '还没有添加音源，添加后才能下载歌曲。';
       list.appendChild(li);
       return;
     }
