@@ -1111,14 +1111,15 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  background-color: rgba(255, 255, 255, 0.34);
-  background-image:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.14)),
-    radial-gradient(circle at 10% 10%, rgba(34, 211, 238, 0.10), transparent 40%),
-    radial-gradient(circle at 90% 15%, rgba(167, 139, 250, 0.11), transparent 42%),
-    radial-gradient(circle at 75% 90%, rgba(244, 114, 182, 0.10), transparent 42%);
-  background-repeat: no-repeat;
-  background-size: cover;
+  /* 与首页 .card 使用完全相同的玻璃公式（颜色/透明度/光晕位置全部一致），
+     只把毛玻璃换成视口基准：首页单卡不会拼缝，这里靠 fixed 保证内部连续。 */
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.14)),
+    radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.15), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.18), transparent 38%),
+    radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.12), transparent 38%),
+    var(--card);
+  background-attachment: fixed;
   box-shadow: var(--shadow);
 }
 .search-panel > .card,
@@ -1147,10 +1148,11 @@ summary:hover { color: var(--text); }
 }
 @media (prefers-color-scheme: dark) {
   .search-panel {
-    background-color: rgb(28 18 26 / 0.66);
-    background-image:
-      radial-gradient(circle at 10% 10%, rgb(34 211 238 / 0.08), transparent 40%),
-      radial-gradient(circle at 90% 15%, rgb(167 139 250 / 0.09), transparent 42%),
-      radial-gradient(circle at 75% 90%, rgb(244 114 182 / 0.08), transparent 42%);
+    background:
+      radial-gradient(circle at 8% 8%, rgb(34 211 238 / 0.12), transparent 34%),
+      radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.14), transparent 38%),
+      radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.10), transparent 38%),
+      var(--card);
+    background-attachment: fixed;
   }
 }
