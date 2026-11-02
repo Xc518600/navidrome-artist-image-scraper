@@ -2859,6 +2859,13 @@ def search_qq_album_art(audio_path_str: str) -> dict:
     item = best[1]
     album_mid = str(item.get("albummid") or item.get("albumMid") or item.get("albumMID") or "").strip()
     if not album_mid:
+        # smartbox 搜索不返回专辑 ID，改用详情接口按 songmid 补全
+        songmid = str(item.get("mid") or item.get("songmid") or "").strip()
+        if songmid:
+            detail = fetch_qq_song_details([songmid]).get(songmid) or {}
+            album_mid = str(detail.get("album_mid") or "").strip()
+
+    if not album_mid:
         return {"ok": False, "error": "qq-album-mid-missing", "context": context, "candidate": item}
 
     art_url = f"https://y.qq.com/music/photo_new/T002R1200x1200M000{album_mid}.jpg"
@@ -5181,9 +5188,11 @@ def fetch_qq_song_details(songmids: list[str], timeout: int = 6) -> dict:
             info = (((r.json() or {}).get("req") or {}).get("data") or {}).get("track_info") or {}
             if not info:
                 return
+            album_obj = info.get("album") or {}
             out[mid] = {
                 "duration": int(info.get("interval") or 0),
-                "album": str((info.get("album") or {}).get("name") or "").strip(),
+                "album": str(album_obj.get("name") or "").strip(),
+                "album_mid": str(album_obj.get("mid") or "").strip(),
             }
         except Exception:
             return
