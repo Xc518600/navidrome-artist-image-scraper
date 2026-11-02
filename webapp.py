@@ -1584,6 +1584,32 @@ def _format_duration_text(seconds: int | float | None) -> str:
     return f"{minutes:02d}:{remain:02d}"
 
 
+def _qq_keyword_rank_score(song_name: str, singer_text: str, keyword: str) -> int:
+    """QQ 关键词搜索打分：歌名匹配为主，歌手命中加分，翻唱/DJ/Live 降权"""
+    song_cf = _cf_text(song_name)
+    keyword_cf = _cf_text(keyword)
+    singer_cf = _cf_text(singer_text)
+    score = 0
+    if song_cf and song_cf == keyword_cf:
+        score += 100
+    elif keyword_cf and (song_cf.startswith(keyword_cf) or keyword_cf.startswith(song_cf)):
+        score += 78
+    elif keyword_cf and keyword_cf in song_cf:
+        score += 60
+    elif song_cf and song_cf in keyword_cf:
+        score += 45
+    else:
+        score += 10
+    # 关键词里的歌手名命中结果歌手，强力加分（原唱通常歌手完全一致）
+    if singer_cf and singer_cf and (singer_cf in keyword_cf and len(singer_cf) >= 2):
+        score += 35
+    junk_signals = ("cover", "翻唱", "dj版", "伴奏", "铃声", "片段", "女版", "男版", "吉他版", "钢琴版")
+    title_low = song_name.lower()
+    if any(sig in title_low for sig in junk_signals):
+        score -= 40
+    return score
+
+
 def _safe_music_result_id(source: str, raw_id: str) -> str:
     return f"{source}:{str(raw_id or '').strip()}"
 
@@ -1842,9 +1868,9 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
     if not keyword:
         return {"ok": False, "error": "missing-keyword", "results": []}
 
-    requested_sources = [str(item).strip().lower() for item in (sources or ["itunes", "netease", "qq", "kugou", "kuwo"]) if str(item).strip()]
+    requested_sources = [str(item).strip().lower() for item in (sources or ["qq", "netease", "kugou", "kuwo", "itunes"]) if str(item).strip()]
     if not requested_sources:
-        requested_sources = ["itunes", "netease", "qq", "kugou", "kuwo"]
+        requested_sources = ["qq", "netease", "kugou", "kuwo", "itunes"]
 
     session = build_http_session()
     results: list[dict] = []
@@ -1900,7 +1926,7 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
                         artist=singer_text,
                         artists=artists,
                         cover_url=str(raw_item.get("pic") or "").strip(),
-                        score=88,
+                        score=_qq_keyword_rank_score(song_name, singer_text, keyword),
                         raw=raw_item,
                     )
                 )
@@ -1948,21 +1974,41 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
             resp.raise_for_status()
             payload = _kuwo_parse_search_payload(resp) or {}
             items = _extract_kuwo_music_items(payload)
-            for raw_item in items[:limit]:
+            keyword_cf = _cf_text(keyword)
+            for raw_item in items[:max(limit * 2, 20)]:
                 rid = _normalize_kuwo_music_id(raw_item)
                 if not rid:
                     continue
                 singer_text = str(raw_item.get("ARTIST") or raw_item.get("artist") or raw_item.get("ARTISTNAME") or "").strip()
+                song_title = str(raw_item.get("SONGNAME") or raw_item.get("name") or raw_item.get("NAME") or "").strip()
+                album_text = str(raw_item.get("ALBUM") or raw_item.get("album") or "").strip()
+                # 过滤播客/专栏/铃声/翻唱集这类垃圾结果
+                junk_signals = ("专栏", "铃声", "DJ版", "伴奏", "片段")
+                combined = f"{song_title} {singer_text} {album_text}"
+                if any(sig in combined for sig in junk_signals):
+                    continue
+                title_norm = _cf_text(song_title)
+                # 按歌名匹配度打分：完全相等最高，前缀次之，包含再次
+                if title_norm == keyword_cf:
+                    rank_score = 100
+                elif title_norm.startswith(keyword_cf) or keyword_cf.startswith(title_norm):
+                    rank_score = 80
+                elif keyword_cf and keyword_cf in title_norm:
+                    rank_score = 60
+                elif title_norm and title_norm in keyword_cf:
+                    rank_score = 40
+                else:
+                    rank_score = 5
                 add_result(
                     _build_music_result(
                         source="kuwo",
                         source_label="酷我",
                         result_id=_safe_music_result_id("kuwo", rid),
-                        title=str(raw_item.get("SONGNAME") or raw_item.get("name") or raw_item.get("NAME") or "").strip(),
+                        title=song_title,
                         artist=singer_text,
                         artists=[part.strip() for part in singer_text.split("&") if part.strip()] or [singer_text],
-                        album=str(raw_item.get("ALBUM") or raw_item.get("album") or "").strip(),
-                        score=80,
+                        album=album_text,
+                        score=rank_score,
                         raw=raw_item,
                     )
                 )
