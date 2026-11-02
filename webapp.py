@@ -3821,6 +3821,40 @@ def is_scan_cache_stale(data: Optional[dict], ttl_seconds: int = 300) -> bool:
     return (datetime.now() - updated).total_seconds() > ttl_seconds
 
 
+def remove_song_from_album_art_scan_cache(audio_path: Path) -> None:
+    """单曲补封面成功后，把这首歌从「无内嵌封面」缓存里移除"""
+    try:
+        cache = load_scan_cache(ALBUM_ART_SCAN_CACHE_PATH)
+    except Exception:
+        return
+    if not cache:
+        return
+    key_candidates = ("missing_album_art_song_rows", "no_embedded_album_art_song_rows")
+    source_file = str(audio_path)
+    changed = False
+    for key in key_candidates:
+        rows = list(cache.get(key) or [])
+        if not rows:
+            continue
+        filtered = [r for r in rows if str(r.get("source_file") or "") != source_file]
+        if len(filtered) != len(rows):
+            cache[key] = filtered
+            changed = True
+    if "no_embedded_album_art_songs" in cache:
+        rows = cache.get("missing_album_art_song_rows") or cache.get("no_embedded_album_art_song_rows") or []
+        try:
+            cache["no_embedded_album_art_songs"] = len(rows)
+            changed = True
+        except Exception:
+            pass
+    if changed:
+        cache["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            save_scan_cache(ALBUM_ART_SCAN_CACHE_PATH, cache)
+        except Exception:
+            pass
+
+
 def remove_song_from_lyrics_scan_cache(audio_path: Path) -> None:
     cache = load_scan_cache(LYRICS_SCAN_CACHE_PATH)
     if not cache:
