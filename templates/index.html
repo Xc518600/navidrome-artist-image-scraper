@@ -1224,9 +1224,8 @@ async function downloadToLibrary(item, keyword, button) {
       if (p.stage === 'done') {
         finished = true;
         const realQ = String(p.real_quality || '').toLowerCase();
-        doneText = `完成 · ${realQ.includes('flac') ? '真无损 FLAC' : (realQ ? realQ.toUpperCase() : qualityLabel)} · ${p.size_mb}MB`;
+        const doneText = `完成 · ${realQ.includes('flac') ? '真无损 FLAC' : (realQ ? realQ.toUpperCase() : qualityLabel)} · ${p.size_mb}MB`;
         showProgress(doneText, 100);
-        if (wantFlac && !gotFlac) prog.classList.add('dl-warn');
         if (btn) { btn.disabled = false; btn.textContent = '再次下载'; }
       } else if (p.stage === 'failed') {
         finished = true;
