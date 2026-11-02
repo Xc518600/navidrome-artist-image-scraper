@@ -457,6 +457,13 @@ h3 { font-size: 14px; font-weight: 600; }
   min-height: 38px;
 }
 .result-row .result-actions > .result-download > .btn { min-height: 38px; }
+
+/* 移动端：下载块与来源页按钮统一为固定 38px 高，不再被内容撑高 */
+@media (max-width: 520px) {
+  .result-row .result-actions { align-items: flex-start; }
+  .result-row .result-actions > .result-download { align-self: flex-start; }
+  .result-row .result-actions > .result-download > .btn,
+  .result-row .result-actions > a.btn { height: 38px; min-height: 38px; }
 }
 
 
