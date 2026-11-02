@@ -2163,7 +2163,7 @@ def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
             try:
                 proc = subprocess.run(
                     ["node", str(LX_RUNNER_SCRIPT), str(script_path)],
-                    input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=75,
+                    input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=45,
                 )
             except Exception as exc:
                 print(f"[lx-source] runner failed for {item['id']} {src_key}: {exc}", file=sys.stderr, flush=True)

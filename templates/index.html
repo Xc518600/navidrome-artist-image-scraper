@@ -1202,13 +1202,20 @@ async function downloadToLibrary(item, keyword, button) {
     if (!startData.ok) throw new Error(startData.error || '无法开始下载');
     const ticket = startData.ticket;
     let finished = false;
+    let pollFails = 0;
     while (!finished) {
       await new Promise((r) => setTimeout(r, 700));
       let p = null;
       try {
         const res = await fetch(`/api/music-download-progress?ticket=${encodeURIComponent(ticket)}`, { cache: 'no-store' });
         p = await res.json();
-      } catch (err) { continue; }
+        pollFails = 0;
+      } catch (err) {
+        pollFails += 1;
+        if (pollFails === 1) showProgress(`网络抖动，正在重连… · ${qualityLabel}`, 5);
+        if (pollFails >= 8) throw new Error('进度查询多次失败，下载可能仍在后台进行');
+        continue;
+      }
       if (!p || !p.ok) continue;
       if (p.stage === 'done') {
         finished = true;
