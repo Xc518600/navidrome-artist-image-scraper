@@ -5042,14 +5042,14 @@ def api_scan_count():
 
 
 def lx_probe_song_formats(source: str, song_id: str) -> dict:
-    """探测各音质实际拿到的链接与体积（同一链接=音源降级，需提示）"""
+    """探测各音质真实可下载的档位与体积（与实际下载共用同一解析路径）"""
     formats = []
-    seen_urls = {}
+    seen_sig = {}
     for quality, label in (("320k", "320k MP3"), ("flac", "无损 FLAC")):
         info = None
         for attempt in range(2):
             try:
-                info = lx_resolve_with_details(source, song_id, quality)
+                info = lx_resolve_song_url(source, song_id, quality)
             except Exception:
                 info = None
             if info and info.get("ok"):
@@ -5058,29 +5058,45 @@ def lx_probe_song_formats(source: str, song_id: str) -> dict:
         if not info:
             continue
         url = str(info.get("url") or "")
-        size_bytes = int(info.get("size_bytes") or 0)
+        size_bytes = _remote_content_length(url)
         real_quality = _guess_quality_from_url(url) or quality
-        key = url.split("?")[0]
-        downgraded = real_quality != quality
+        sig = (url.split("?")[0], size_bytes)
         entry = {
             "quality": quality,
             "label": label,
-            "size_text": _format_size_text(size_bytes),
             "size_bytes": size_bytes,
+            "size_text": _format_size_text(size_bytes),
             "real_quality": real_quality,
-            "downgraded": downgraded,
+            "downgraded": real_quality != quality,
         }
-        if key in seen_urls:
-            # 与前一档返回同一文件：说明音源没有更高音质，只降级到这一档
-            entry["downgraded"] = True
-            entry["real_quality"] = seen_urls[key]
+        if sig in seen_sig:
             entry["size_text"] = "同一文件"
+            entry["downgraded"] = True
+            entry["real_quality"] = seen_sig[sig]
             entry["note"] = "音源实际只返回了较低音质"
         else:
-            seen_urls[key] = real_quality
-        entry["real_quality"] = real_quality
+            seen_sig[sig] = real_quality
         formats.append(entry)
     return {"ok": bool(formats), "formats": formats}
+
+
+def _remote_content_length(url: str) -> int:
+    url = str(url or "").strip()
+    if not url:
+        return 0
+    try:
+        session = requests.Session()
+        session.trust_env = False
+        head = session.head(url, timeout=15, allow_redirects=True, headers={"User-Agent": "okhttp/3.10.0"})
+        length = int(head.headers.get("Content-Length") or 0)
+        if length:
+            return length
+        probe = session.get(url, stream=True, timeout=15, headers={"User-Agent": "okhttp/3.10.0"})
+        length = int(probe.headers.get("Content-Length") or 0)
+        probe.close()
+        return length
+    except Exception:
+        return 0
 
 
 def _guess_quality_from_url(url: str) -> str:
