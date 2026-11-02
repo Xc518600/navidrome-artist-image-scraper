@@ -1117,8 +1117,11 @@ summary:hover { color: var(--text); }
 /* 搜索页三块卡片：结构上包进 .search-panel 统一容器，由容器提供唯一一层
    背景与边框，内部三块完全透明、无背景、无边框、无圆角、无边距。
    这样不存在“拼接”，从根上消除分割线与色差带。 */
-/* v6：整块面板只有一个元素，可以安全使用首页同款毛玻璃（单层模糊无接缝）。
-   配色与首页 .card 完全一致：34% 白 + 白渐变 + 紫/粉光晕 + blur(6px)。 */
+/* v9：逐项比对后与首页按钮区（topbar）唯一的配方差异是：
+   1) 首页 topbar 没有 saturate(145%)——饱和度滤镜会把壁纸颜色染浓，是「色调不对」的主因
+   2) 首页 topbar 没有任何光晕/渐变叠层
+   3) 模糊半径是 14px 不是 6px
+   这里完全照抄 topbar：纯 var(--card) + blur(14px)，无 saturate、无叠层。 */
 .search-panel {
   position: relative;
   margin: 14px 0;
@@ -1126,18 +1129,10 @@ summary:hover { color: var(--text); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  /* 壁纸清晰度差异：首页卡片只有 200px 高，白渐变 32%→14% 大部分区域只有 14% 白；
-     这块面板 800px+，同一渐变让下半部始终压着 14% 白，壁纸就糊一层。
-     这里去掉白渐变，只留 var(--card) 34% 白 + 光晕，毛玻璃保持 6px 与首页一致，
-     壁纸透出程度即与首页卡片相同。 */
-  background:
-    radial-gradient(circle at 8% 40px, rgb(34 211 238 / 0.08), transparent 220px),
-    radial-gradient(circle at 92% 60px, rgb(167 139 250 / 0.08), transparent 240px),
-    radial-gradient(circle at 76% calc(100% - 40px), rgb(244 114 182 / 0.06), transparent 240px),
-    rgba(255, 255, 255, 0.26);
+  background: var(--card);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px) saturate(145%);
-  -webkit-backdrop-filter: blur(6px) saturate(145%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 .search-panel > .card,
 .search-panel > .card:hover {
