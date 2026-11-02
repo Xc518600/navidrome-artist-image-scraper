@@ -2142,8 +2142,24 @@ def lx_probe_source(script_path: Path) -> dict:
     return data
 
 
-def lx_script_resolve_url(source: str, song_id: str, quality: str) -> dict:
-    """遍历已添加音源脚本，请求 musicUrl，成功即返回"""
+def lx_script_resolve_url(source: str, song_id: str, quality: str, attempts: int = 1) -> dict:
+    """遍历已添加音源脚本，请求 musicUrl，成功即返回。
+    attempts>1 时对脚本超时/无输出做重试（音源有随机失败概率）。"""
+    last = None
+    for i in range(max(1, int(attempts))):
+        res = _lx_script_resolve_once(source, song_id, quality)
+        if res.get("ok"):
+            return res
+        last = res
+        if res.get("error") not in ("no-source-script-resolved", "script-timeout"):
+            return res
+        if i + 1 < attempts:
+            time.sleep(1.0)
+    return last or {"ok": False, "error": "no-source-script-resolved"}
+
+
+def _lx_script_resolve_once(source: str, song_id: str, quality: str) -> dict:
+    """单次遍历音源脚本解析"""
     candidates = [source]
     alias = {"kuwo": "kw", "kugou": "kg", "qq": "tx", "netease": "wy"}
     if source in alias:
@@ -2237,7 +2253,8 @@ def lx_resolve_song_url(source: str, song_id: str, quality: str = "128k") -> dic
     """解析下载链接：只走已添加的音源脚本，未添加音源时提示"""
     if not lx_list_sources():
         return {"ok": False, "error": "no-lx-source", "message": "请先点击「音源」按钮添加音源脚本"}
-    return lx_script_resolve_url(source, song_id, quality)
+    # 音源脚本有随机超时概率，解析阶段最多重试 3 次
+    return lx_script_resolve_url(source, song_id, quality, attempts=3)
     """内置落雪音源解析：酷我 mobi.s 接口直接拿真实下载链接（免账号）"""
     if str(source or "").strip().lower() not in {"kw", "kuwo"}:
         return {"ok": False, "error": "lx-unsupported-source"}
@@ -2301,12 +2318,19 @@ def lx_download_song(source: str, song_id: str, title: str, artist: str, quality
     want_lossless = str(quality or "").lower().startswith("flac")
     got_lossless = "flac" in real_q
     if want_lossless and not got_lossless:
-        # 用户要无损但音源只给到有损：拒绝落盘，避免把 M4A 冒充成无损入库
+        if not real_q:
+            # 拿不到格式信息（脚本无输出/异常），不代表音源没无损，属于临时失败
+            _progress_set(ticket, stage="failed", percent=100,
+                          stage_text="音源响应异常，未能确认无损文件，请重试",
+                          reason="resolve-uncertain")
+            return {"ok": False, "error": "resolve-uncertain",
+                    "message": "音源响应异常，未能确认是否提供无损文件。这是临时性故障，请再点一次下载重试。"}
+        # 明确拿到有损文件：音源确实没有无损，拒绝落盘
         _progress_set(ticket, stage="failed", percent=100,
-                      stage_text=f"音源只提供 {real_q.upper() or '有损'}，无法获取无损 FLAC，已取消下载（未写入音乐库）",
+                      stage_text=f"音源只提供 {real_q.upper()}，无法获取无损 FLAC，已取消下载（未写入音乐库）",
                       reason="lossless-unavailable", real_quality=real_q)
         return {"ok": False, "error": "lossless-unavailable",
-                "message": f"音源只提供 {real_q.upper() or '有损'} 文件，没有真无损。已取消下载，未写入音乐库。可改选「高品 320k」下载。"}
+                "message": f"音源只提供 {real_q.upper()} 文件，没有真无损。已取消下载，未写入音乐库。可改选「高品 320k」下载。"}
     if "flac" in real_q:
         ext = "flac"
     elif real_q in ("m4a", "aac"):
