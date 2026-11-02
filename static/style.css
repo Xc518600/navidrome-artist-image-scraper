@@ -1102,41 +1102,43 @@ summary:hover { color: var(--text); }
 }
 
 /* 搜索页：三张平级卡片合并成一张连续面板。
-   分割线的成因：每张卡各自有 border（1px 半透明白线）。
-   即使去掉上下相接的边框，只要卡片之间有 1px 重叠或空隙，就仍会看到线。
-   做法：三块完全不画边框，整块区域的外框由 ::before/::after 单独绘制一层。 */
+   残留分割线的真因：三块各自带了 backdrop-filter 毛玻璃。
+   Safari 对每个独立模糊层单独采样计算，层与层的接缝处必然出现色差带，
+   无论怎么去边框、对齐外边距都消不掉。
+   做法：这一整段区域去掉毛玻璃，改用一层纯色玻璃底 + 视口基准固定的光晕，
+   三块共用同一套背景，接缝处不再有独立采样，彻底无缝。 */
 section.card:has(+ #music-search-entry),
 section#music-search-entry.card,
 section#music-search-results-panel.card {
   border: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.16)),
+    radial-gradient(circle at 10% 10%, rgb(34 211 238 / 0.10), transparent 40%),
+    radial-gradient(circle at 90% 15%, rgb(167 139 250 / 0.11), transparent 42%),
+    radial-gradient(circle at 75% 90%, rgb(244 114 182 / 0.10), transparent 42%),
+    rgb(255 252 254 / 0.42) !important;
   background-attachment: fixed !important;
-  backdrop-filter: blur(6px) saturate(145%) !important;
-  -webkit-backdrop-filter: blur(6px) saturate(145%) !important;
 }
 section.card:has(+ #music-search-entry) {
   margin-bottom: 0 !important;
   border-radius: var(--radius) var(--radius) 0 0 !important;
   padding-bottom: 12px !important;
-  position: relative !important;
-  z-index: 2;
 }
 section#music-search-entry.card {
   margin: 0 !important;
   padding: 4px 20px !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  position: relative !important;
-  z-index: 1;
 }
 section#music-search-results-panel.card {
   margin: 0 !important;
   padding: 8px 20px 18px !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
   box-shadow: none !important;
-  position: relative !important;
-  z-index: 1;
 }
-/* 整块区域的外框：只画外轮廓，不画内部分割线 */
+/* 整块区域只画外轮廓，内部无任何线条 */
 section.card:has(+ #music-search-entry)::after,
 section#music-search-results-panel.card::before {
   content: "";
@@ -1145,6 +1147,12 @@ section#music-search-results-panel.card::before {
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
   pointer-events: none;
+}
+section.card:has(+ #music-search-entry) {
+  position: relative;
+}
+section#music-search-results-panel.card {
+  position: relative;
 }
 section.card:has(+ #music-search-entry)::after {
   border-top: 1px solid var(--line);
@@ -1155,4 +1163,16 @@ section#music-search-results-panel.card::before {
   border-bottom: 1px solid var(--line);
   border-radius: 0 0 var(--radius) var(--radius);
   top: -1px;
+}
+@media (prefers-color-scheme: dark) {
+  section.card:has(+ #music-search-entry),
+  section#music-search-entry.card,
+  section#music-search-results-panel.card {
+    background:
+      radial-gradient(circle at 10% 10%, rgb(34 211 238 / 0.08), transparent 40%),
+      radial-gradient(circle at 90% 15%, rgb(167 139 250 / 0.09), transparent 42%),
+      radial-gradient(circle at 75% 90%, rgb(244 114 182 / 0.08), transparent 42%),
+      rgb(28 18 26 / 0.66) !important;
+    background-attachment: fixed !important;
+  }
 }
