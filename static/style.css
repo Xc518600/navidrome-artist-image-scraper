@@ -437,7 +437,7 @@ h3 { font-size: 14px; font-weight: 600; }
     width: auto;
   }
   .result-row .result-actions > .result-download { display: flex; flex-direction: column; gap: 6px; }
-  .result-row .result-actions > .result-download > .btn { width: 100%; }
+  .result-row .result-actions > .result-download > .btn { width: 100%; box-sizing: border-box; }
   /* 下载块内的进度与音质行不能被 flex 拉伸 */
   .result-row .result-actions > .result-download > .download-progress,
   .result-row .result-actions > .result-download > .quality-chips {
@@ -468,7 +468,10 @@ h3 { font-size: 14px; font-weight: 600; }
   .result-row .result-actions > .result-download:only-child {
     flex: 0 0 calc(50% - 4px);
     max-width: calc(50% - 4px);
+    box-sizing: border-box;
   }
+  .result-row .result-actions > a.btn,
+  .result-row .result-actions > .btn { box-sizing: border-box; }
 }
 
 
