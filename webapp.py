@@ -1924,10 +1924,15 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
             )
             resp.raise_for_status()
             items = ((((resp.json() or {}).get("data") or {}).get("song") or {}).get("itemlist") or [])
+            qq_items = []
             for raw_item in items[:limit]:
                 songmid = str(raw_item.get("mid") or raw_item.get("songmid") or "").strip()
-                if not songmid:
-                    continue
+                if songmid:
+                    qq_items.append((songmid, raw_item))
+            # smartbox 不返回时长/专辑，这里并发补全详情
+            details = fetch_qq_song_details([mid for mid, _ in qq_items])
+            for songmid, raw_item in qq_items:
+                info = details.get(songmid) or {}
                 song_name = str(raw_item.get("name") or raw_item.get("songname") or raw_item.get("title") or "").strip()
                 singer_text = str(raw_item.get("singer") or "").strip()
                 artists = [part.strip() for part in singer_text.split("/") if part.strip()]
@@ -1939,6 +1944,8 @@ def search_music_by_keyword(keyword: str, limit: int = 24, sources: Optional[lis
                         title=song_name,
                         artist=singer_text,
                         artists=artists,
+                        album=str(info.get("album") or "").strip(),
+                        duration=info.get("duration") or 0,
                         cover_url=str(raw_item.get("pic") or "").strip(),
                         score=_qq_keyword_rank_score(song_name, singer_text, keyword),
                         raw=raw_item,
@@ -5118,6 +5125,41 @@ def api_scan_count():
     data["cache_max_age_seconds"] = ARTIST_SCAN_COUNT_CACHE_MAX_AGE_SECONDS
     data["cache_age_seconds"] = get_artist_scan_cache_age_seconds(data)
     return jsonify(data)
+
+
+def fetch_qq_song_details(songmids: list[str], timeout: int = 6) -> dict:
+    """并发拉取 QQ 歌曲详情（时长/专辑），返回 {songmid: {"duration": int, "album": str}}"""
+    mids = [m for m in dict.fromkeys(songmids) if m][:24]
+    if not mids:
+        return {}
+    out: dict[str, dict] = {}
+
+    def one(mid: str):
+        try:
+            payload = {"comm": {"ct": 24, "cv": 0},
+                       "req": {"module": "music.pf_song_detail_svr", "method": "get_song_detail",
+                               "param": {"song_mid": mid}}}
+            s = requests.Session()
+            s.trust_env = False
+            r = s.post("https://u.y.qq.com/cgi-bin/musicu.fcg", json=payload,
+                       headers={"Referer": "https://y.qq.com/", "Origin": "https://y.qq.com",
+                                "User-Agent": "Mozilla/5.0"}, timeout=timeout)
+            info = (((r.json() or {}).get("req") or {}).get("data") or {}).get("track_info") or {}
+            if not info:
+                return
+            out[mid] = {
+                "duration": int(info.get("interval") or 0),
+                "album": str((info.get("album") or {}).get("name") or "").strip(),
+            }
+        except Exception:
+            return
+
+    try:
+        with ThreadPoolExecutor(max_workers=min(6, len(mids))) as pool:
+            list(pool.map(one, mids))
+    except Exception:
+        pass
+    return out
 
 
 def lx_probe_song_formats(source: str, song_id: str) -> dict:
