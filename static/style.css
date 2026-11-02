@@ -122,14 +122,27 @@ body {
   line-height: 1.6;
   background-color: var(--bg);
   /* 壁纸直接用主题原版（Background.vue 同款，cover 铺满固定） */
+  /* 壁纸改用伪元素固定定位承载。
+     原因：body 上的 background-attachment: fixed 在 iOS Safari 是已知缺陷，
+     页面高度突变（如搜索结果一次性插入）时壁纸会被重新缩放，出现拉伸变形。
+     改用 position: fixed 的固定层后，壁纸由合成层独立绘制，不随文档高度变化。 */
+  background-image: none;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background-image: url("bg-light.webp");
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
+  background-repeat: no-repeat;
+  pointer-events: none;
 }
 
 @media (prefers-color-scheme: dark) {
-  body { background-image: url("bg-dark.webp"); }
+  body { background-image: none; }
+  body::before { background-image: url("bg-dark.webp"); }
 }
 
 a { color: var(--primary); text-decoration: none; }
@@ -1163,6 +1176,5 @@ summary:hover { color: var(--text); }
       radial-gradient(circle at 92% 12%, rgb(167 139 250 / 0.14), transparent 38%),
       radial-gradient(circle at 76% 94%, rgb(244 114 182 / 0.10), transparent 38%),
       var(--card);
-    background-attachment: fixed;
   }
 }
