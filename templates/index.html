@@ -10,6 +10,7 @@
   {% set current_view = request.args.get('view', 'home') %}
   {% if page == 'music-library' and current_view == 'home' %}
   <header class="topbar">
+    <div class="home-petal-layer" id="home-petal-layer" aria-hidden="true"></div>
     <div>
       <h1>媒体工具台</h1>
       <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
@@ -1604,6 +1605,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+
+
+/* 首页花瓣：只在首页视图生成，低数量低开销 */
+(function () {
+  if (!document.body || document.body.dataset.page.indexOf('music-library-home') !== 0) return;
+  var layer = document.getElementById('home-petal-layer');
+  if (!layer) return;
+  var COUNT = 7;
+  for (var i = 0; i < COUNT; i++) {
+    var petal = document.createElement('span');
+    petal.className = 'home-petal';
+    petal.style.left = (4 + Math.random() * 92) + '%';
+    petal.style.animationDuration = (9 + Math.random() * 8) + 's';
+    petal.style.animationDelay = (-Math.random() * 12) + 's';
+    petal.style.transform = 'scale(' + (0.6 + Math.random() * 0.8) + ')';
+    layer.appendChild(petal);
+  }
+})();
 
 </script>
 </body>

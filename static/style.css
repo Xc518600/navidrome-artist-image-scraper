@@ -162,6 +162,7 @@ h3 { font-size: 14px; font-weight: 600; }
 /* ---------- 顶栏 ---------- */
 
 .topbar {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) auto;
   gap: 24px;
@@ -1191,4 +1192,53 @@ summary:hover { color: var(--text); }
 }
 .search-panel > .section-head-card > .section-head-row {
   padding-top: 18px;
+}
+
+/* ---------- 首页动态装饰：花瓣 / 标题呼吸光晕 / 按钮触摸反馈 ---------- */
+.home-petal-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.home-petal {
+  position: absolute;
+  top: -24px;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 214, 228, 0.9), rgba(240, 150, 180, 0.35));
+  border-radius: 60% 40% 55% 45% / 55% 45% 60% 40%;
+  opacity: 0;
+  animation: petal-fall linear infinite;
+}
+@keyframes petal-fall {
+  0%   { transform: translate3d(0, -20px, 0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.75; }
+  50%  { transform: translate3d(18px, 45vh, 0) rotate(180deg); }
+  90%  { opacity: 0.6; }
+  100% { transform: translate3d(-10px, 105vh, 0) rotate(340deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-petal { display: none; }
+}
+.topbar h1 {
+  animation: title-glow 8s ease-in-out infinite;
+}
+@keyframes title-glow {
+  0%, 100% { text-shadow: 0 0 0 rgba(255, 170, 200, 0); }
+  50%      { text-shadow: 0 0 18px rgba(255, 170, 200, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar h1 { animation: none; }
+}
+.topbar .toolbar-actions .btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.topbar .toolbar-actions .btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(232, 130, 170, 0.65);
+}
+.topbar .toolbar-actions .btn:active {
+  transform: translateY(1px) scale(0.98);
 }
