@@ -1196,11 +1196,11 @@ summary:hover { color: var(--text); }
 
 /* ---------- 首页动态装饰：花瓣 / 标题呼吸光晕 / 按钮触摸反馈 ---------- */
 .home-petal-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 0;
+  z-index: 5;
 }
 .home-petal {
   position: absolute;

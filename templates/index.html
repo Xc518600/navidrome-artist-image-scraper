@@ -10,7 +10,6 @@
   {% set current_view = request.args.get('view', 'home') %}
   {% if page == 'music-library' and current_view == 'home' %}
   <header class="topbar">
-    <div class="home-petal-layer" id="home-petal-layer" aria-hidden="true"></div>
     <div>
       <h1>媒体工具台</h1>
       <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
@@ -1611,7 +1610,13 @@ document.addEventListener('DOMContentLoaded', () => {
 (function () {
   if (!document.body || document.body.dataset.page.indexOf('music-library-home') !== 0) return;
   var layer = document.getElementById('home-petal-layer');
-  if (!layer) return;
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.className = 'home-petal-layer';
+    layer.id = 'home-petal-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(layer);
+  }
   var COUNT = 7;
   for (var i = 0; i < COUNT; i++) {
     var petal = document.createElement('span');
