@@ -660,22 +660,29 @@ h3 { font-size: 14px; font-weight: 600; }
 .music-search-toolbar .settings-lyrics-search-input,
 .music-search-toolbar input[type="text"] { flex: 1; min-width: 200px; }
 
-/* 「全部音源」下拉框：做成与「返回首页」同款按钮尺寸（紧凑、auto 宽度），不再通栏 */
+/* 「全部音源」下拉框：与「返回首页」按钮同宽度同尺寸，隐藏原生箭头改用自绘小箭头 */
 #music-source-select {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
-  width: auto;
+  width: 88px;
   min-width: 0;
   padding: 8px 14px;
   min-height: 38px;
   font-size: 13px;
   font-weight: 550;
   line-height: 1.2;
+  text-align: left;
   color: var(--text);
   background: var(--btn-bg);
   border: 1px solid var(--btn-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--btn-shadow);
   cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b0567a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
 }
 
 /* 手机端工具栏被 display:contents 摊平后 margin 清零，恢复「搜索歌曲」与「音源」之间的间隔 */
