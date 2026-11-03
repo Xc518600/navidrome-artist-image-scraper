@@ -660,6 +660,30 @@ h3 { font-size: 14px; font-weight: 600; }
 .music-search-toolbar .settings-lyrics-search-input,
 .music-search-toolbar input[type="text"] { flex: 1; min-width: 200px; }
 
+/* 「全部音源」下拉框：做成与「返回首页」同款按钮尺寸（紧凑、auto 宽度），不再通栏 */
+#music-source-select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  padding: 8px 14px;
+  min-height: 38px;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.2;
+  color: var(--text);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--btn-shadow);
+  cursor: pointer;
+}
+
+/* 手机端工具栏被 display:contents 摊平后 margin 清零，恢复「搜索歌曲」与「音源」之间的间隔 */
+@media (max-width: 1024px) {
+  #music-search-entry .settings-lyrics-search-bar .btn { margin: 0; }
+  #music-search-entry .settings-lyrics-search-bar .btn + .btn { margin-top: 10px; }
+}
+
 /* ---------- 设置区（左列表 + 右详情） ---------- */
 
 .settings-shell {
