@@ -227,11 +227,6 @@
   </section>
   <section class="card" id="music-search-entry">
     <div class="settings-panel-title-row">
-      <h3>搜索歌曲</h3>
-    </div>
-    <div class="settings-lyrics-search-bar music-search-toolbar">
-      <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
-      <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
       <select id="music-source-select" class="settings-search-input settings-lyrics-search-input" style="width:auto; min-width:96px;" onchange="return searchMusicCatalog()">
         <option value="">全部音源</option>
         <option value="kuwo">酷我</option>
@@ -239,6 +234,10 @@
         <option value="netease">网易云</option>
         <option value="kugou">酷狗</option>
       </select>
+    </div>
+    <div class="settings-lyrics-search-bar music-search-toolbar">
+      <input id="music-search-input" class="settings-search-input settings-lyrics-search-input" type="text" placeholder="输入歌曲名 / 歌手名，比如：青花瓷 周杰伦" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchMusicCatalog(); }">
+      <button type="button" id="music-search-button" class="btn btn-primary progress-btn settings-lyrics-search-button" data-idle-label="搜索歌曲" data-loading-label="正在搜索歌曲..." onclick="return searchMusicCatalog()">搜索歌曲</button>
       <button type="button" class="btn settings-lyrics-search-button" onclick="return openLxSourceModal()">音源</button>
     </div>
   </section>
