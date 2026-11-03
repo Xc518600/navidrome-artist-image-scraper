@@ -1200,7 +1200,7 @@ summary:hover { color: var(--text); }
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 5;
+  z-index: 9999;
 }
 .home-petal {
   position: absolute;
