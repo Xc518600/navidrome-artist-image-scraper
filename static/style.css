@@ -1205,18 +1205,19 @@ summary:hover { color: var(--text); }
 .home-petal {
   position: absolute;
   top: -24px;
-  width: 14px;
-  height: 14px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 214, 228, 0.9), rgba(240, 150, 180, 0.35));
-  border-radius: 60% 40% 55% 45% / 55% 45% 60% 40%;
+  width: 20px;
+  height: 20px;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 1.2 C10 1.2 8.2 4.2 9.2 5.6 C7.4 4.6 5.4 6.2 4.4 8.2 C2.8 11.4 3.4 15.2 6.2 17.2 C8.6 18.9 11.4 18.9 13.8 17.2 C16.6 15.2 17.2 11.4 15.6 8.2 C14.6 6.2 12.6 4.6 10.8 5.6 C11.8 4.2 10 1.2 10 1.2 Z' fill='%23ec6a9c' stroke='%23d14e82' stroke-width='0.6'/%3E%3Cpath d='M10 3.4 C10 3.4 9 6 9.8 7.4 C8.4 6.8 7 8.2 6.4 9.8 C5.4 12.2 6 14.8 8 16.2' fill='none' stroke='%23f9b8d0' stroke-width='1' stroke-linecap='round' opacity='0.9'/%3E%3C/svg%3E");
   opacity: 0;
   animation: petal-fall linear infinite;
 }
 @keyframes petal-fall {
   0%   { transform: translate3d(0, -20px, 0) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.75; }
+  10%  { opacity: 0.95; }
   50%  { transform: translate3d(18px, 45vh, 0) rotate(180deg); }
-  90%  { opacity: 0.6; }
+  90%  { opacity: 0.85; }
   100% { transform: translate3d(-10px, 105vh, 0) rotate(340deg); opacity: 0; }
 }
 /* 首页 topbar 同款流星扫光 */
