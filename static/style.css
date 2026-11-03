@@ -1242,3 +1242,31 @@ summary:hover { color: var(--text); }
 .topbar .toolbar-actions .btn:active {
   transform: translateY(1px) scale(0.98);
 }
+
+/* ---------- 卡片流星/光斑：玻璃面板上周期性划过的淡高光 ---------- */
+.search-panel {
+  position: relative;
+  overflow: hidden;
+}
+.search-panel::after {
+  content: "";
+  position: absolute;
+  top: -60%;
+  left: -80%;
+  width: 60%;
+  height: 220%;
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.10) 45%, rgba(255, 224, 238, 0.16) 55%, rgba(255, 255, 255, 0) 100%);
+  transform: rotate(8deg);
+  pointer-events: none;
+  z-index: 1;
+  animation: panel-sheen 12s ease-in-out infinite;
+}
+@keyframes panel-sheen {
+  0%, 55%  { left: -80%; opacity: 0; }
+  60%      { opacity: 1; }
+  85%      { left: 130%; opacity: 1; }
+  86%, 100%{ left: 130%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-panel::after { animation: none; display: none; }
+}
