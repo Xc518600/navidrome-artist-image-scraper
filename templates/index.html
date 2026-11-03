@@ -1108,8 +1108,10 @@ async function probeResultFormats(rows) {
 
 function openLxSourceModal() {
   const modal = document.getElementById('lx-source-modal');
-  if (modal) modal.style.display = 'block';
-  refreshLxSourceList();
+  if (!modal) return false;
+  const showing = modal.style.display === 'block';
+  modal.style.display = showing ? 'none' : 'block';
+  if (!showing) refreshLxSourceList();
   return false;
 }
 
