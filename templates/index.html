@@ -242,7 +242,7 @@
     </div>
   </section>
 
-  <section class="card" id="music-search-results-panel">
+  <section class="card" id="music-search-results-panel" style="display:none;">
     <div id="lx-source-modal" style="display:none; margin-bottom:14px; border:1px solid var(--border, #ddd); border-radius:12px; padding:14px;">
       <strong>音源管理</strong>
       <p class="hint" style="margin:6px 0;">粘贴落雪音乐（lx-music）自定义音源脚本 JS 内容，保存后即可用该音源解析下载链接。脚本仅在本地运行。</p>
@@ -982,6 +982,8 @@ function updateMusicSearchSummary(message, tone = 'info') {
 function renderMusicSearchResults(results, keyword = '') {
   const list = document.getElementById('music-search-results-list');
   const badge = document.getElementById('music-search-count-badge');
+  const panel = document.getElementById('music-search-results-panel');
+  if (panel) panel.style.display = 'block';
   if (!list || !badge) return;
   list.innerHTML = '';
   const rows = Array.isArray(results) ? results : [];
