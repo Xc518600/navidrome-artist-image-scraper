@@ -685,6 +685,8 @@ h3 { font-size: 14px; font-weight: 600; }
 @media (max-width: 1024px) {
   #music-search-entry .settings-lyrics-search-bar .btn { margin: 0; }
   #music-search-entry .settings-lyrics-search-bar .btn + .btn { margin-top: 10px; }
+  /* 输入框与「搜索歌曲」按钮之间同样留 10px */
+  #music-search-entry .settings-lyrics-search-bar .settings-lyrics-search-input { margin-bottom: 10px; }
 }
 
 /* ---------- 设置区（左列表 + 右详情） ---------- */
