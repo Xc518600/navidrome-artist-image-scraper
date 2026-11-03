@@ -1200,7 +1200,11 @@ summary:hover { color: var(--text); }
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 100;
+  /* iOS Safari 对超大 z-index 固定层有合成剔除 bug（层会整体不渲染），
+     压到 100（顶栏才 10）并强制独立合成层规避 */
+  transform: translateZ(0);
+  will-change: transform;
 }
 .home-petal {
   position: absolute;
