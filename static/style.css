@@ -1205,11 +1205,11 @@ summary:hover { color: var(--text); }
 .home-petal {
   position: absolute;
   top: -24px;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   background-repeat: no-repeat;
   background-size: contain;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 1.2 C10 1.2 8.2 4.2 9.2 5.6 C7.4 4.6 5.4 6.2 4.4 8.2 C2.8 11.4 3.4 15.2 6.2 17.2 C8.6 18.9 11.4 18.9 13.8 17.2 C16.6 15.2 17.2 11.4 15.6 8.2 C14.6 6.2 12.6 4.6 10.8 5.6 C11.8 4.2 10 1.2 10 1.2 Z' fill='%23ec6a9c' stroke='%23d14e82' stroke-width='0.6'/%3E%3Cpath d='M10 3.4 C10 3.4 9 6 9.8 7.4 C8.4 6.8 7 8.2 6.4 9.8 C5.4 12.2 6 14.8 8 16.2' fill='none' stroke='%23f9b8d0' stroke-width='1' stroke-linecap='round' opacity='0.9'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg stroke='%23d14e82' stroke-width='0.7'%3E%3Cpath d='M12 12 C10.8 8.6 10.8 5.4 12 2.6 C13.2 5.4 13.2 8.6 12 12 Z' fill='%23ec6a9c'/%3E%3Cpath d='M12 12 C15.4 11.6 18.4 12.8 20.6 15.8 C17.4 15.4 14.6 14.2 12 12 Z' fill='%23f07da9'/%3E%3Cpath d='M12 12 C14.4 14.6 15.4 17.6 15 21.2 C12.8 18.8 11.8 15.8 12 12 Z' fill='%23ec6a9c'/%3E%3Cpath d='M12 12 C9.6 14.6 6.6 15.8 3.4 15.4 C5.6 13.4 8.6 12.2 12 12 Z' fill='%23f07da9'/%3E%3Cpath d='M12 12 C9.2 10.6 6.2 10 2.8 10.6 C5 8.2 8.4 7.8 12 12 Z' fill='%23ec6a9c'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1.6' fill='%23f9d4e2'/%3E%3C/svg%3E");
   opacity: 0;
   animation: petal-fall linear infinite;
 }
