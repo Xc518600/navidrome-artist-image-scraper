@@ -459,6 +459,7 @@
     </div>
   </section>
   <section class="grid stats">
+    <div class="card"><div class="label">总歌曲数</div><div class="value">{{ data.stats.songs or 0 }}</div></div>
     <div class="card success"><div class="label">有内嵌封面</div><div class="value">{{ data.stats.embedded_album_art_songs or 0 }}</div></div>
     <div class="{% if data.stats.no_embedded_album_art_songs %}card danger{% else %}card{% endif %}"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
   </section>
@@ -474,6 +475,7 @@
           <div class="missing-art-note">所在目录是 mixed folder，目录级任务会跳过，但这首歌本身确实没有内嵌封面</div>
           {% endif %}
         </div>
+        <div class="missing-art-cover"><img src="/api/song-cover?path={{ item.source_file|urlencode }}" alt="" loading="lazy" style="max-width:56px;max-height:56px;border-radius:6px;" onerror="this.style.display='none'"></div>
         <div class="missing-art-actions">
           <button type="button" class="btn btn-small btn-primary progress-btn" data-idle-label="刮削封面" data-loading-label="正在刮削封面..." onclick='return submitTargetJob("song-cover-online-write", {{ {"audio_path": item.source_file}|tojson }}, { suppressReload: false, progressButton: this })'>刮削封面</button>
         </div>
