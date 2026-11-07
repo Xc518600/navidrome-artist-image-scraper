@@ -4131,7 +4131,8 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
                     "has_artist_image": bool(existing_image),
                 })
 
-            status = "success" if any(r["has_artist_image"] for r in folder_rows) else ("failed" if report_item.get("ok") is False else "missing")
+            exported_files = [str(f) for f in (report_item.get("navidrome_exported") or []) if f]
+            status = "success" if (any(r["has_artist_image"] for r in folder_rows) or exported_files) else ("failed" if report_item.get("ok") is False else "missing")
             if status == "success":
                 success_artist_count += 1
             elif status == "failed":
