@@ -1297,3 +1297,22 @@ summary:hover { color: var(--text); }
   opacity: 0.75;
   margin-left: 6px;
 }
+
+/* 移动端统计卡：两列大卡，数字醒目（对齐详情页旧版观感） */
+@media (max-width: 520px) {
+  .grid.stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .grid.stats .card .value {
+    font-size: 34px;
+    font-weight: 700;
+  }
+  .grid.stats .card .label {
+    font-size: 13px;
+  }
+  /* 奇数张卡时最后一张占满整行 */
+  .grid.stats .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
