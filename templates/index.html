@@ -464,7 +464,7 @@
     <div class="{% if data.stats.no_embedded_album_art_songs %}card danger{% else %}card{% endif %}"><div class="label">无内嵌封面</div><div class="value">{{ data.stats.no_embedded_album_art_songs or 0 }}</div></div>
   </section>
   <section class="card" id="missing-album-art">
-    <h2>无内嵌歌曲</h2>
+    <h2>无内嵌歌曲 <span class="stat-inline">{{ data.no_embedded_album_art_song_rows|length }} 首</span></h2>
     <ul class="missing-art-list">
     {% for item in data.no_embedded_album_art_song_rows %}
       <li class="missing-art-item">

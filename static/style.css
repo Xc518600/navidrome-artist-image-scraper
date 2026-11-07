@@ -1290,3 +1290,10 @@ summary:hover { color: var(--text); }
   85%      { left: 130%; opacity: 1; }
   86%, 100%{ left: 130%; opacity: 0; }
 }
+
+.stat-inline {
+  font-size: 0.72em;
+  font-weight: normal;
+  opacity: 0.75;
+  margin-left: 6px;
+}
