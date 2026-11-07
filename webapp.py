@@ -2406,7 +2406,50 @@ def resolve_music_preview(result_id: str, keyword: str = "") -> dict:
     if source == "netease":
         song_id = result_id.split(":", 1)[1].strip()
         return resolve_netease_song_media(song_id)
+    # 排行榜曲目：QQ 用 songMid，网易云用 song_id，直接解析试听流
+    if source == "toplist-qq":
+        return resolve_qq_toplist_preview(result_id.split(":", 1)[1].strip())
+    if source == "toplist-ne":
+        return resolve_netease_song_media(result_id.split(":", 1)[1].strip())
     return {"ok": False, "error": "preview-unavailable-for-source"}
+
+
+def resolve_qq_toplist_preview(song_id: str) -> dict:
+    """用 songId 查详情拿歌名/歌手，试听流走网易云同曲匹配兜底。"""
+    if not song_id:
+        return {"ok": False, "error": "missing-song-id"}
+    try:
+        resp = requests.post(
+            "https://u.y.qq.com/cgi-bin/musicu.fcg",
+            headers={"Referer": "https://y.qq.com/", "User-Agent": _UA_PREVIEW,
+                     "Content-Type": "application/json"},
+            json={"comm": {"ct": 24, "cv": 0},
+                  "req": {"module": "music.pf_song_detail_svr", "method": "get_song_detail",
+                          "param": {"song_id": int(song_id)}}},
+            timeout=10,
+        )
+        info = ((resp.json().get("req") or {}).get("data") or {}).get("track_info") or {}
+    except Exception as exc:
+        return {"ok": False, "error": f"qq-detail-failed: {exc}"}
+    if not info:
+        return {"ok": False, "error": "qq-song-not-found"}
+    title = str(info.get("name") or "").strip()
+    singers = "/".join(str(s.get("name") or "").strip() for s in (info.get("singer") or []) if str(s.get("name") or "").strip())
+    album = info.get("album") or {}
+    return {
+        "ok": True,
+        "source": "toplist-qq",
+        "source_label": "QQ榜单",
+        "title": title,
+        "artist": singers,
+        "album": str(album.get("name") or ""),
+        "cover_url": f"https://y.gtimg.cn/music/photo_new/T002R500x500M000{album.get('mid')}.jpg" if album.get("mid") else "",
+        "preview_url": "",
+        "netease_fallback_keyword": f"{title} {singers}".strip(),
+    }
+
+
+_UA_PREVIEW = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 
 
 def stream_remote_music_preview(url: str, filename: str = "preview.m4a"):
@@ -2428,7 +2471,7 @@ def stream_remote_music_preview(url: str, filename: str = "preview.m4a"):
         "m710.music.126.net",
     }
     hostname = (parsed.hostname or "").strip().lower()
-    if hostname not in allowed_hosts:
+    if hostname not in allowed_hosts and not hostname.endswith(".music.126.net"):
         abort(403)
     session = build_http_session()
     upstream = session.get(url, stream=True, timeout=request_timeout())

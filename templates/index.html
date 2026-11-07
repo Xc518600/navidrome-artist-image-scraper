@@ -282,8 +282,8 @@
         <option value="qq_27">QQ · 新歌榜</option>
         <option value="qq_4">QQ · 流行指数榜</option>
         <option value="ne_3778678">网易云 · 热歌榜</option>
-        <option value="ne_3779629">网易云 · 飙升榜</option>
-        <option value="ne_3777962">网易云 · 新歌榜</option>
+        <option value="ne_19723756">网易云 · 飙升榜</option>
+        <option value="ne_3779629">网易云 · 新歌榜</option>
       </select>
       <span class="settings-badge settings-badge-secondary" id="toplist-count-badge">0 首</span>
     </div>
@@ -291,6 +291,13 @@
     <ul class="simple-list result-list" id="toplist-songs-list">
       <li>先选择一个榜单</li>
     </ul>
+    <div id="toplist-preview-panel" style="display:none; margin-top:12px; border:1px solid var(--border, #ddd); border-radius:12px; padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <strong id="toplist-preview-title">试听</strong>
+        <button type="button" class="btn btn-small" onclick="return toplistStopPreview()">停止</button>
+      </div>
+      <p class="hint" id="toplist-preview-status"></p>
+    </div>
   </section>
   </div>
   <script>
@@ -307,6 +314,7 @@
         <span class="result-sub">#${song.rank || '-'} · ${song.artist || '未知歌手'} · ${song.sourceLabel || ''}</span>
       </div>
       <div class="result-actions">
+        <button type="button" class="btn btn-small" onclick="return toplistPreview(this)">试听</button>
         <button type="button" class="btn btn-small" onclick="return toplistSearchDownload(this)">搜索下载</button>
       </div>
     </li>`;
@@ -340,9 +348,9 @@
       toplistSongs = result.songs.map(s => ({ ...s, sourceLabel }));
       badge.textContent = toplistSongs.length + ' 首';
       statusEl.style.display = 'none';
-      listEl.innerHTML = toplistSongs.map(s => {
+      listEl.innerHTML = toplistSongs.map((s, i) => {
         const li = toplistRowHtml(s);
-        return li;
+        return li.replace('class="result-row toplist-row"', 'class="result-row toplist-row" data-idx="' + i + '"');
       }).join('');
     } catch (err) {
       statusEl.textContent = '❌ 拉取榜单失败：' + err.message;
@@ -363,6 +371,71 @@
       const url = '/?page=music-library&view=music-search&q=' + encodeURIComponent(kw);
       window.location.href = url + '&auto=1';
     } catch (e) {
+      btn.disabled = false; btn.textContent = old;
+    }
+    return false;
+  }
+
+  let toplistAudio = null;
+
+  function toplistStopPreview() {
+    if (toplistAudio) { toplistAudio.pause(); toplistAudio = null; }
+    const panel = document.getElementById('toplist-preview-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  async function toplistPreview(btn) {
+    const li = btn.closest('.toplist-row');
+    const idx = parseInt(li.getAttribute('data-idx') || '-1', 10);
+    const song = toplistSongs[idx];
+    if (!song) return false;
+    const panel = document.getElementById('toplist-preview-panel');
+    const statusEl = document.getElementById('toplist-preview-status');
+    const titleEl = document.getElementById('toplist-preview-title');
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = '解析中…';
+    try {
+      toplistStopPreview();
+      const source = document.getElementById('toplist-select').value.startsWith('ne_') ? 'toplist-ne' : 'toplist-qq';
+      const songId = source === 'toplist-ne' ? (song.song_id || '') : (song.mid || '');
+      const res = await fetch('/api/music-preview?id=' + encodeURIComponent(source + ':' + songId) + '&keyword=' + encodeURIComponent(song.keyword || ''));
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'no-preview');
+      let streamUrl = data.preview_url || '';
+      // QQ 榜单没有直接试听流：用关键词在网易云找同曲试听
+      if (!streamUrl && data.netease_fallback_keyword) {
+        statusEl.textContent = 'QQ 无试听流，找网易云同曲…';
+        const sres = await fetch('/api/music-search-async?q=' + encodeURIComponent(data.netease_fallback_keyword) + '&sources=netease&limit=5');
+        const sdata = await sres.json();
+        if (sdata.ok) {
+          let sr = null;
+          for (let i = 0; i < 15 && !sr; i++) {
+            await new Promise(r => setTimeout(r, 600));
+            const r2 = await fetch('/api/music-search-result?job=' + sdata.job);
+            const d2 = await r2.json();
+            if (d2.state === 'done') sr = d2.result;
+            else if (d2.state === 'error') break;
+          }
+          const items = (sr && sr.results) || [];
+          const netease = items.find(it => (it.source === 'netease') && it.preview_available) || items.find(it => it.source === 'netease');
+          if (netease) {
+            const pres = await fetch('/api/music-preview?id=' + encodeURIComponent(netease.id));
+            const pdata = await pres.json();
+            if (pdata.ok && pdata.preview_url) streamUrl = pdata.preview_url;
+          }
+        }
+      }
+      if (!streamUrl) throw new Error('找不到可试听的音频流');
+      statusEl.textContent = '';
+      titleEl.textContent = (song.title || '') + ' · ' + (song.artist || '');
+      panel.style.display = 'block';
+      toplistAudio = new Audio('/api/music-preview-stream?url=' + encodeURIComponent(streamUrl));
+      toplistAudio.play().catch(() => { statusEl.textContent = '浏览器拦截了自动播放，请再点一次试听'; });
+    } catch (err) {
+      statusEl.textContent = '❌ 试听失败：' + err.message;
+      panel.style.display = 'block';
+    } finally {
       btn.disabled = false; btn.textContent = old;
     }
     return false;

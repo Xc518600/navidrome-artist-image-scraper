@@ -17,11 +17,11 @@ QQ_TOPLISTS = [
     {"id": "qq_4", "top_id": 4, "name": "流行指数榜", "source": "qq"},
 ]
 
-# 网易云榜单歌单 ID（公开接口 /api/playlist/detail 实测可用）
+# 网易云榜单歌单 ID（官方 toplist/detail 实测确认）
 NETEASE_TOPLISTS = [
     {"id": "ne_3778678", "playlist_id": 3778678, "name": "热歌榜", "source": "netease"},
-    {"id": "ne_3779629", "playlist_id": 3779629, "name": "飙升榜", "source": "netease"},
-    {"id": "ne_3777962", "playlist_id": 3777962, "name": "新歌榜", "source": "netease"},
+    {"id": "ne_19723756", "playlist_id": 19723756, "name": "飙升榜", "source": "netease"},
+    {"id": "ne_3779629", "playlist_id": 3779629, "name": "新歌榜", "source": "netease"},
 ]
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
@@ -93,9 +93,8 @@ def fetch_qq_toplist(top_id: int, limit: int = 50) -> Dict[str, Any]:
             "title": title,
             "artist": singer,
             "rank": item.get("rank"),
-            "mid": str(item.get("songMid") or item.get("mid") or ""),
-            "cover": str(item.get("cover") or item.get("albumMid") and
-                         f"https://y.gtimg.cn/music/photo_new/T002R300x300M000{item.get('albumMid')}.jpg" or ""),
+            "song_id": str(item.get("songId") or ""),
+            "cover": str(item.get("cover") or ""),
             "keyword": f"{title} {singer}".strip(),
         })
     if not songs:
