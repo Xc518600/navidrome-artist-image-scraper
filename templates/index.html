@@ -1775,6 +1775,16 @@ async function autoBootstrapHomePage() {
 
 document.addEventListener('DOMContentLoaded', () => {
   autoBootstrapHomePage();
+  // 排行榜「搜索下载」跳转：q + auto=1 自动填入关键词并搜索，直达下载结果
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const q = String(sp.get('q') || '').trim();
+    if (q && sp.get('auto') === '1') {
+      const input = document.getElementById('music-search-input');
+      if (input) input.value = q;
+      setTimeout(() => searchMusicCatalog(), 300);
+    }
+  } catch (e) {}
   const activeSongButton = document.querySelector('.settings-song-item.active');
   if (activeSongButton) {
     try {
