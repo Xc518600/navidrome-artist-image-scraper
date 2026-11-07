@@ -22,6 +22,7 @@
       <a class="btn" href="/?page=music-library&view=lyrics">刮削歌词</a>
       <a class="btn" href="/?page=music-library&view=album-art#missing-album-art">刮削专辑图</a>
       <a class="btn" href="/?page=music-library&view=music-search">歌曲搜索下载</a>
+      <a class="btn" href="/?page=music-library&view=toplist">排行榜</a>
       <a class="btn" href="/?page=settings">设置</a>
       {% endif %}
     </div>
@@ -259,6 +260,114 @@
     </ul>
   </section>
   </div>
+  {% endif %}
+
+  {% if library_view == 'toplist' %}
+  <div class="search-panel">
+  <section class="card section-head-card">
+    <div class="section-head-row">
+      <div>
+        <h2>歌曲排行榜</h2>
+        <p class="hint">QQ 音乐 / 网易云官方榜单，点击曲目即可搜索下载（复用现有音源与音质链路）。</p>
+      </div>
+      <a class="btn btn-primary settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
+    </div>
+  </section>
+  <section class="card" id="toplist-entry">
+    <div class="settings-panel-title-row">
+      <select id="toplist-select" onchange="return loadToplistSongs()">
+        <option value="">选择榜单…</option>
+        <option value="qq_26">QQ · 热歌榜</option>
+        <option value="qq_62">QQ · 飙升榜</option>
+        <option value="qq_27">QQ · 新歌榜</option>
+        <option value="qq_4">QQ · 流行指数榜</option>
+        <option value="ne_3778678">网易云 · 热歌榜</option>
+        <option value="ne_3779629">网易云 · 飙升榜</option>
+        <option value="ne_3777962">网易云 · 新歌榜</option>
+      </select>
+      <span class="settings-badge settings-badge-secondary" id="toplist-count-badge">0 首</span>
+    </div>
+    <p class="hint" id="toplist-status" style="display:none;"></p>
+    <ul class="simple-list result-list" id="toplist-songs-list">
+      <li>先选择一个榜单</li>
+    </ul>
+  </section>
+  </div>
+  <script>
+  let toplistSongs = [];
+
+  function toplistRowHtml(song) {
+    const kw = song.keyword || ((song.title || '') + ' ' + (song.artist || '')).trim();
+    const cover = song.cover || '';
+    const coverHtml = cover ? `<img src="${cover}" alt="" loading="lazy" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;">` : '';
+    return `<li class="result-row toplist-row" data-kw="${encodeURIComponent(kw)}">
+      ${coverHtml}
+      <div class="result-main">
+        <strong>${song.title || ''}</strong>
+        <span class="result-sub">#${song.rank || '-'} · ${song.artist || '未知歌手'} · ${song.sourceLabel || ''}</span>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="btn btn-small" onclick="return toplistSearchDownload(this)">搜索下载</button>
+      </div>
+    </li>`;
+  }
+
+  async function loadToplistSongs() {
+    const sel = document.getElementById('toplist-select');
+    const listEl = document.getElementById('toplist-songs-list');
+    const statusEl = document.getElementById('toplist-status');
+    const badge = document.getElementById('toplist-count-badge');
+    const listId = sel.value;
+    if (!listId) { listEl.innerHTML = '<li>先选择一个榜单</li>'; badge.textContent = '0 首'; return false; }
+    statusEl.style.display = 'block';
+    statusEl.textContent = '正在拉取榜单…';
+    listEl.innerHTML = '';
+    try {
+      const startRes = await fetch('/api/toplist-songs-async?list=' + encodeURIComponent(listId) + '&limit=50');
+      const startData = await startRes.json();
+      if (!startData.ok) throw new Error(startData.error || 'start-failed');
+      let done = false, result = null;
+      for (let i = 0; i < 40 && !done; i++) {
+        await new Promise(r => setTimeout(r, 600));
+        const res = await fetch('/api/toplist-songs-result?job=' + startData.job);
+        const data = await res.json();
+        if (data.state === 'done') { done = true; result = data.result; }
+        else if (data.state === 'error') { done = true; result = { ok: false, error: data.error }; }
+      }
+      if (!done) throw new Error('timeout');
+      if (!result || !result.ok) throw new Error((result && result.error) || '拉取失败');
+      const sourceLabel = sel.options[sel.selectedIndex].text.split(' · ')[0];
+      toplistSongs = result.songs.map(s => ({ ...s, sourceLabel }));
+      badge.textContent = toplistSongs.length + ' 首';
+      statusEl.style.display = 'none';
+      listEl.innerHTML = toplistSongs.map(s => {
+        const li = toplistRowHtml(s);
+        return li;
+      }).join('');
+    } catch (err) {
+      statusEl.textContent = '❌ 拉取榜单失败：' + err.message;
+      badge.textContent = '0 首';
+    }
+    return false;
+  }
+
+  async function toplistSearchDownload(btn) {
+    const li = btn.closest('.toplist-row');
+    const kw = decodeURIComponent(li.getAttribute('data-kw') || '');
+    if (!kw) return false;
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = '搜索中…';
+    try {
+      // 复用歌曲搜索下载页：跳转并带上关键词，由现有页面逻辑接手
+      const url = '/?page=music-library&view=music-search&q=' + encodeURIComponent(kw);
+      window.location.href = url + '&auto=1';
+    } catch (e) {
+      btn.disabled = false; btn.textContent = old;
+    }
+    return false;
+  }
+  </script>
   {% endif %}
 
   {% if library_view == 'album-art' %}

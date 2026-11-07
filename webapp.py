@@ -20,6 +20,7 @@ from urllib.parse import quote, unquote, urlparse
 
 import requests
 
+import toplist_data
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for, Response
 from mutagen import File as MutagenFile
 from mutagen.flac import FLAC, Picture
@@ -5282,6 +5283,50 @@ def _guess_quality_from_url(url: str) -> str:
 
 
 SEARCH_JOBS: dict[str, dict] = {}
+
+
+@app.route("/api/toplists")
+def api_toplists():
+    return jsonify({"ok": True, "toplists": toplist_data.list_toplists()})
+
+
+TOPLIST_JOBS: Dict[str, dict] = {}
+
+
+@app.route("/api/toplist-songs-async")
+def api_toplist_songs_async():
+    """异步拉榜单曲目，避免长连接被网关掊断（同 4l 模式）"""
+    list_id = str(request.args.get("list") or "").strip()
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except ValueError:
+        limit = 50
+    if not list_id:
+        return jsonify({"ok": False, "error": "missing-list"}), 400
+    job_id = uuid.uuid4().hex[:16]
+    TOPLIST_JOBS[job_id] = {"state": "running", "list": list_id}
+    if len(TOPLIST_JOBS) > 30:
+        for k in list(TOPLIST_JOBS.keys())[:10]:
+            TOPLIST_JOBS.pop(k, None)
+
+    def worker():
+        try:
+            result = toplist_data.fetch_toplist(list_id, limit=limit)
+            TOPLIST_JOBS[job_id] = {"state": "done", "result": result}
+        except Exception as exc:
+            TOPLIST_JOBS[job_id] = {"state": "error", "error": str(exc)}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"ok": True, "job": job_id})
+
+
+@app.route("/api/toplist-songs-result")
+def api_toplist_songs_result():
+    job_id = str(request.args.get("job") or "").strip()
+    job = TOPLIST_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "unknown-job"}), 404
+    return jsonify({"ok": True, **job})
 
 
 @app.route("/api/music-search-async")

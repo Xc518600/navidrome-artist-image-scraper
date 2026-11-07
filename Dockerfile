@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY scrape_artist_images.py ./
 COPY webapp.py ./
+COPY toplist_data.py ./
 COPY lx_source_runner.js ./
 COPY templates ./templates
 COPY static ./static
