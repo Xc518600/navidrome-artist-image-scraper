@@ -180,7 +180,7 @@
         <p class="hint">最近扫描时间：{{ data.lyrics_scan_updated_at or '还没有后台扫描结果，点下方“后台扫描歌词”开始' }}</p>
       </div>
       <div class="section-head-actions">
-        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'lyrics-scan')">后台扫描歌词</button>
+        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'lyrics-scan', { progressButton: this })">后台扫描歌词</button>
         <a class="btn settings-lyrics-search-button lyrics-back-home-button" href="/?page=music-library">返回主页</a>
       </div>
     </div>
@@ -453,7 +453,7 @@
         <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，点下方“后台扫描专辑图”开始' }}</p>
       </div>
       <div class="section-head-actions">
-        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'album-art-scan')">后台扫描专辑图</button>
+        <button type="button" class="btn btn-primary" onclick="return submitJob(event, 'album-art-scan', { progressButton: this })">后台扫描专辑图</button>
         <a class="btn settings-lyrics-search-button album-art-back-home-button" href="/?page=music-library">返回首页</a>
       </div>
     </div>
@@ -1504,8 +1504,13 @@ async function searchMusicCatalog() {
   return false;
 }
 
-async function submitJob(event, mode) {
+async function submitJob(event, mode, options = {}) {
   event.preventDefault();
+  const progressButton = options.progressButton || null;
+  if (progressButton && !progressButton.dataset.idleLabel) {
+    progressButton.dataset.idleLabel = progressButton.textContent.trim();
+  }
+  if (progressButton) progressButton.classList.add('is-flowing');
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1513,6 +1518,7 @@ async function submitJob(event, mode) {
   });
   const data = await res.json();
   if (!res.ok) {
+    setButtonProgress(progressButton, false);
     const message = data.error || '任务启动失败';
     showJobBanner(message, 'error');
     return false;
@@ -1546,8 +1552,10 @@ async function submitJob(event, mode) {
 
   const waitingMessage = waitingMessages[mode] || '任务已启动，正在等待结果...';
   showJobBanner(waitingMessage);
+  if (progressButton) setButtonProgress(progressButton, true, waitingMessages[mode] ? '扫描中...' : '处理中...');
   const job = await waitForJobFinish({ expectMode: mode, timeoutMs: 180000 });
   const resultMessage = summarizeJobResult(job, '任务已结束');
+  setButtonProgress(progressButton, false);
   showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
   if (mode === 'artist-scan-count' && job?.returncode === 0) {
     await refreshArtistScanCountCard();
