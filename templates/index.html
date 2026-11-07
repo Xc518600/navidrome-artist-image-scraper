@@ -398,7 +398,7 @@
     try {
       toplistStopPreview();
       const source = document.getElementById('toplist-select').value.startsWith('ne_') ? 'toplist-ne' : 'toplist-qq';
-      const songId = source === 'toplist-ne' ? (song.song_id || '') : (song.mid || '');
+      const songId = source === 'toplist-ne' ? (song.song_id || '') : (song.song_id || song.mid || '');
       const res = await fetch('/api/music-preview?id=' + encodeURIComponent(source + ':' + songId) + '&keyword=' + encodeURIComponent(song.keyword || ''));
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'no-preview');
@@ -418,15 +418,16 @@
             else if (d2.state === 'error') break;
           }
           const items = (sr && sr.results) || [];
-          const netease = items.find(it => (it.source === 'netease') && it.preview_available) || items.find(it => it.source === 'netease');
-          if (netease) {
-            const pres = await fetch('/api/music-preview?id=' + encodeURIComponent(netease.id));
+          const neList = items.filter(it => it.source === 'netease');
+          neList.sort((a, b) => (b.preview_available ? 1 : 0) - (a.preview_available ? 1 : 0));
+          for (const ne of neList.slice(0, 3)) {
+            const pres = await fetch('/api/music-preview?id=' + encodeURIComponent(ne.id));
             const pdata = await pres.json();
-            if (pdata.ok && pdata.preview_url) streamUrl = pdata.preview_url;
+            if (pdata.ok && pdata.preview_url) { streamUrl = pdata.preview_url; break; }
           }
         }
       }
-      if (!streamUrl) throw new Error('找不到可试听的音频流');
+      if (!streamUrl) throw new Error('QQ 和网易云都没拿到这首歌的试听流（可能是版权限制）');
       statusEl.textContent = '';
       titleEl.textContent = (song.title || '') + ' · ' + (song.artist || '');
       panel.style.display = 'block';
