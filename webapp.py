@@ -3898,6 +3898,19 @@ def remove_song_from_album_art_scan_cache(audio_path: Path) -> None:
             changed = True
         except Exception:
             pass
+    if "no_embedded_album_art_song_count" in cache:
+        rows = cache.get("no_embedded_album_art_song_rows") or []
+        try:
+            cache["no_embedded_album_art_song_count"] = len(rows)
+            changed = True
+        except Exception:
+            pass
+    if "missing_album_art_song_count" in cache and "missing_album_art_song_rows" in cache:
+        try:
+            cache["missing_album_art_song_count"] = len(cache.get("missing_album_art_song_rows") or [])
+            changed = True
+        except Exception:
+            pass
     if changed:
         cache["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
