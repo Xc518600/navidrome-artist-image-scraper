@@ -4200,7 +4200,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
                 "title": "扫描缺失专辑图片",
                 "status": "ready",
                 "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('embedded_album_art_song_count', 0)} 首歌自带内嵌封面，另有 {album_art_scan.get('no_embedded_album_art_song_count', 0)} 首歌没有内嵌封面。",
-                "action_url": "/?page=music-library&view=album-art#missing-album-art",
+                "action_url": "/?page=music-library&view=album-art",
                 "action_label": "查看专辑图结果",
             },
             {
@@ -4388,7 +4388,7 @@ def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False)
             "title": "扫描缺失专辑图片",
             "status": "ready",
             "description": f"最近一次后台扫描结果显示有 {album_art_scan.get('embedded_album_art_song_count', 0)} 首歌自带内嵌封面，另有 {album_art_scan.get('no_embedded_album_art_song_count', 0)} 首歌没有内嵌封面。",
-            "action_url": "/?page=music-library&view=album-art#missing-album-art",
+            "action_url": "/?page=music-library&view=album-art",
             "action_label": "查看专辑图结果",
         },
         {
