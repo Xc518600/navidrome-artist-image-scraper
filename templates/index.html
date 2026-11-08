@@ -992,7 +992,16 @@ async function submitSongCoverCandidateWrite(audioPath, candidateToken) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.ok) {
-    const message = data?.error || '候选封面写入失败';
+    let message = data?.error || '候选封面写入失败';
+    if (res.status === 409 && data?.error === 'job already running') {
+      message = '后台当前还有任务在跑，写入被拒了。请等它结束后，重新点一次「选这个封面写入」。';
+    } else if (data?.error === 'candidate-not-found') {
+      message = '候选已过期（服务重启或候选列表太旧），请重新搜索封面后再选一次。';
+    } else if (data?.error === 'candidate-cover-url-missing') {
+      message = '这条候选没有封面图地址，换一条别的候选试试。';
+    } else if (String(data?.error || '').startsWith('candidate-image-download-failed')) {
+      message = '封面图下载失败（图源网络问题），换一条别的候选试试。';
+    }
     showJobBanner(message, 'error');
     return false;
   }
