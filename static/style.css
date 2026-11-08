@@ -235,8 +235,8 @@ h3 { font-size: 14px; font-weight: 600; }
 .progress-btn { position: relative; }
 .progress-btn.is-loading { color: transparent !important; pointer-events: none; }
 .progress-btn.is-loading:not(.is-flowing) > * { visibility: hidden; }
-/* 流光态下不显示转圈，避免两套动画叠加 */
-.progress-btn.is-loading.is-flowing::after { content: none; animation: none; }
+/* 流光态下由扫光接管视觉，不叠加转圈（改为让转圈规则在流光态不生效，避免误杀流光 ::after） */
+.progress-btn.is-loading:not(.is-flowing)::after { content: none; }
 .progress-btn.is-flowing {
   color: var(--text) !important;
   background: var(--btn-bg);
