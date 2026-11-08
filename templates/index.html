@@ -1090,7 +1090,12 @@ async function submitCandidateWrite(audioPath, candidateToken) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.ok) {
-    const message = data?.error || '候选歌词写入失败';
+    let message = data?.error || '候选歌词写入失败';
+    if (res.status === 409 && data?.error === 'job already running') {
+      message = '后台当前还有任务在跑，写入被拒了。请等它结束后，重新点一次「选这个歌词写入」。';
+    } else if (data?.error === 'candidate-not-found') {
+      message = '候选已过期（服务重启或候选列表太旧），请重新搜索歌词后再选一次。';
+    }
     showJobBanner(message, 'error');
     return false;
   }
