@@ -7,13 +7,13 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
 </head>
 <body data-page="{{ page }}{% if page == 'music-library' %}-{{ request.args.get('view', 'home') }}{% endif %}">
+  <div id="job-result-banner" class="hint" style="display:none; position:sticky; top:0; z-index:50;"></div>
   {% set current_view = request.args.get('view', 'home') %}
   {% if page == 'music-library' and current_view == 'home' %}
   <header class="topbar">
     <div>
       <h1>媒体工具台</h1>
       <p class="version-stamp">本次更新时间：{{ page_updated_at }}</p>
-      <div id="job-result-banner" class="hint" style="display:none;"></div>
     </div>
     <div class="actions toolbar-actions">
       {% if page == 'artist-images' %}
