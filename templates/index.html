@@ -135,10 +135,8 @@
       <div class="value" id="scan-artists-count">{{ data.stats.artists }}</div>
       {% if scan_error %}<div class="error">{{ scan_error }}</div>{% endif %}
     </div>
-    <div class="card success"><div class="label">刮削成功歌手</div><div class="value" id="success-artists-count">{{ data.stats.success_artists }}</div></div>
     <div class="{% if data.stats.failed_artists %}card danger{% else %}card{% endif %}"><div class="label">刮削失败歌手</div><div class="value" id="failed-artists-count">{{ data.stats.failed_artists }}</div></div>
     <div class="card"><div class="label">待处理歌手</div><div class="value" id="pending-artists-count">{{ data.pending_artists }}</div><div class="hint">已扫描到，但还没进入当前报告明细</div></div>
-    <div class="card"><div class="label">上次任务成功歌手</div><div class="value" id="last-run-success-artists-count">{{ data.stats.last_run_success_artists }}</div></div>
   </section>
 
 
