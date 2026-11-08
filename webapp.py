@@ -444,7 +444,7 @@ def _candidate_title_artist_score(title_cf: str, artist_cf: str, part_cfs: list[
     return score
 
 
-def build_lyric_candidates(audio_path: Path, max_candidates: int = 8, store_audio_path: Optional[Path] = None) -> list[dict]:
+def build_lyric_candidates(audio_path: Path, max_candidates: int = 20, store_audio_path: Optional[Path] = None) -> list[dict]:
     context = track_search_context(audio_path)
     candidate_store_audio_path = (store_audio_path or audio_path).resolve()
     title = str(context.get("title") or "").strip()
