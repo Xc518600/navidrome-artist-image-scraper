@@ -558,6 +558,24 @@ def make_report(summary: dict, output_path: Optional[Path]):
     if not output_path:
         return
     ensure_dir(output_path.parent)
+    # 单歌手局部任务（stats.artists==1）不覆盖全量报告：把结果合并进已有报告
+    if (
+        output_path.exists()
+        and int((summary.get("stats") or {}).get("artists") or 0) == 1
+        and len(summary.get("artists") or {}) == 1
+    ):
+        try:
+            existing = json.loads(output_path.read_text(encoding="utf-8"))
+            if len(existing.get("artists") or {}) > 1:
+                existing_artists = existing.get("artists") or {}
+                existing_artists.update(summary.get("artists") or {})
+                existing["artists"] = existing_artists
+                ok_count = sum(1 for v in existing_artists.values() if isinstance(v, dict) and v.get("ok"))
+                existing["stats"]["success_artists"] = ok_count
+                existing["stats"]["failed_artists"] = len(existing_artists) - ok_count
+                summary = existing
+        except Exception:
+            pass
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
