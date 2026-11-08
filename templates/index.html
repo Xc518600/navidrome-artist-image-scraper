@@ -504,9 +504,11 @@ async function waitForJobFinish(options = {}) {
     expectTargetFolder = null,
     expectTargetArtist = null,
     resolveOnManualCandidates = false,
+    quiet = false,
   } = options;
-  const startedAt = Date.now();
+  let startedAt = Date.now();
   let lastJob = null;
+  let sawQueuedOther = false;
 
   while (Date.now() - startedAt < timeoutMs) {
     try {
@@ -530,6 +532,12 @@ async function waitForJobFinish(options = {}) {
 
       if (matches && (hasExpectedManualCandidates || (job.running === false && job.mode))) {
         return job;
+      }
+      // 排队模式：还在等别人的任务跑，延长超时
+      if (quiet && job.running === true) {
+        if (startedAt + timeoutMs - Date.now() < 30000) {
+          startedAt = Date.now() + timeoutMs - 30000; // 保底 30 秒，只要还在跑就续
+        }
       }
     } catch (e) {}
     await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -1608,9 +1616,21 @@ async function submitTargetJob(mode, target, options = {}) {
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({mode, target})
+    body: JSON.stringify({mode, target, queue: true})
   });
   const data = await res.json();
+  if (data?.queued) {
+    showJobBanner(`当前有任务在跑，本任务已排队（第 ${data.queue_len || 1} 位），完成后自动执行。`, 'info');
+    // 等待前面的任务全部结束、自己开跑并完成
+    const job = await waitForJobFinish({ expectMode: mode, expectTargetAudio: target?.audio_path || null, expectTargetFolder: target?.folder_path || null, quiet: true });
+    const resultMessage = summarizeJobResult(job, '排队任务已结束');
+    showJobBanner(resultMessage, resultMessage.startsWith('❌') ? 'error' : 'info');
+    if (progressButton) setButtonProgress(progressButton, false);
+    if (!suppressReload && ['dry-run', 'scrape', 'artist-scan-count', 'lyrics-scan', 'album-art-scan'].includes(mode)) {
+      setTimeout(() => location.reload(), 800);
+    }
+    return true;
+  }
   if (!res.ok) {
     setButtonProgress(progressButton, false);
     let message = data.error || '任务启动失败';

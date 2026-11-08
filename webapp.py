@@ -86,6 +86,9 @@ def _no_cache_html(response):
 
 
 job_lock = threading.Lock()
+job_queue: list[dict] = []  # FIFO 等待队列：{"mode", "overwrite", "target", "queued_at"}
+job_queue_lock = threading.Lock()
+JOB_QUEUE_MAX = 10
 lyrics_candidate_store: dict[str, dict] = {}
 song_cover_candidate_store: dict[str, dict] = {}
 job_state = {
@@ -4574,10 +4577,20 @@ def ensure_home_bootstrap_started() -> bool:
     return True
 
 
-def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
+def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None, allow_queue: bool = False):
     with job_lock:
         if job_state["running"]:
-            return False
+            if not allow_queue:
+                return False
+            # 排队：FIFO，最多 JOB_QUEUE_MAX 条，同模式同目标去重
+            with job_queue_lock:
+                for item in job_queue:
+                    if item["mode"] == mode and item.get("overwrite") == overwrite and item.get("target") == target:
+                        return "queued"
+                if len(job_queue) >= JOB_QUEUE_MAX:
+                    return "full"
+                job_queue.append({"mode": mode, "overwrite": overwrite, "target": target, "queued_at": int(time.time())})
+            return "queued"
         auto_configure = mode in {"write", "scrape"}
         job_state.update({
             "running": True,
@@ -4682,6 +4695,20 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None):
         finally:
             job_state["running"] = False
             job_state["finished_at"] = int(time.time())
+            # 队列有等待任务则自动接续执行（FIFO）
+            nxt = None
+            with job_queue_lock:
+                if job_queue:
+                    nxt = job_queue.pop(0)
+            if nxt is not None:
+                def queued_runner(item):
+                    try:
+                        time.sleep(0.5)  # 给状态查询留个间隙
+                        append_job_log(f"[INFO] queued job starting: {item['mode']}")
+                        run_job(mode=item["mode"], overwrite=item.get("overwrite", False), target=item.get("target"))
+                    except Exception as exc:
+                        append_job_log(f"[ERROR] queued job failed to start: {exc}")
+                threading.Thread(target=queued_runner, args=(nxt,), daemon=True).start()
 
     threading.Thread(target=worker, daemon=True).start()
     return True
@@ -5622,7 +5649,12 @@ def api_job():
         return jsonify(result), (200 if result.get("ok") else 400)
     if mode not in {"dry-run", "write", "scrape", "artist-online-write", "artist-scan-count", "lyrics-scan", "album-art-scan", "album-art-write", "album-art-write-overwrite", "lyrics-write", "lyrics-write-overwrite", "lyrics-online-write", "lyrics-online-write-overwrite", "album-art-online-write", "album-art-online-write-overwrite", "song-cover-online-write", "song-cover-online-write-overwrite"}:
         return jsonify({"ok": False, "error": "invalid mode"}), 400
-    started = run_job(mode=mode, overwrite=overwrite, target=target)
+    queue_requested = request.args.get("queue") in {"1", "true"} or bool((request.get_json(silent=True) or {}).get("queue"))
+    started = run_job(mode=mode, overwrite=overwrite, target=target, allow_queue=queue_requested)
+    if started == "queued":
+        return jsonify({"ok": True, "queued": True, "message": "当前有任务在跑，已加入队列，完成后自动执行", "queue_len": len(job_queue)})
+    if started == "full":
+        return jsonify({"ok": False, "error": "queue full", "message": f"队列已满（最多 {JOB_QUEUE_MAX} 个），稍后再试"}), 429
     if not started:
         return jsonify({"ok": False, "error": "job already running", "job": job_state}), 409
     return jsonify({"ok": True, "job": job_state})
