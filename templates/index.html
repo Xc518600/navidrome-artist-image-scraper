@@ -513,8 +513,15 @@ async function waitForJobFinish(options = {}) {
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const res = await fetch('/api/job');
-      const job = await res.json();
-      lastJob = job;
+      const jobRaw = await res.json();
+      lastJob = jobRaw;
+
+      // 双槽：期望的任务若在 scan_job 槽，改用该槽视图匹配；否则用合并视图
+      let job = jobRaw;
+      if (expectMode && jobRaw.scan_job && jobRaw.scan_job.mode === expectMode
+          && (jobRaw.scan_job.running || jobRaw.mode !== expectMode)) {
+        job = { ...jobRaw.scan_job, home_bootstrap: jobRaw.home_bootstrap };
+      }
 
       const target = job.target || {};
       const modeOk = !expectMode || job.mode === expectMode;
@@ -912,13 +919,6 @@ async function searchSettingsLyrics() {
     return false;
   }
 
-  const jobRes = await fetch('/api/job');
-  const currentJob = await jobRes.json().catch(() => ({}));
-  if (currentJob?.running) {
-    showJobBanner('后台当前还有任务在跑，先等它结束，再搜索歌词。', 'error');
-    return false;
-  }
-
   setButtonProgress(actionButton, true, '正在检查任务状态...');
   if (actionButton) actionButton.classList.add('is-flowing');
   showJobBanner(`正在搜索与“${keyword}”匹配的歌词候选...`);
@@ -936,14 +936,6 @@ async function scrapeCurrentSongCover() {
   const song = window.__selectedSettingsSong;
   if (!song?.source_file) {
     showJobBanner('还没有选中歌曲，先点左侧一首歌再刮封面。', 'error');
-    return false;
-  }
-
-  const jobRes = await fetch('/api/job');
-  const currentJob = await jobRes.json().catch(() => ({}));
-  if (currentJob?.running) {
-    const runningLabel = formatRunningJobLabel(currentJob);
-    showJobBanner(`后台当前正在运行：${runningLabel}。请等它结束后，再刮这首歌的内嵌封面。`, 'error');
     return false;
   }
 

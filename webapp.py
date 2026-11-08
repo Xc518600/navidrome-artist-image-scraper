@@ -102,6 +102,22 @@ job_state = {
     "auto_configure": False,
     "target": None,
 }
+# 轻量扫描类独立槽：与写入类任务并行互不冲突
+SCAN_LIGHT_MODES = {"artist-scan-count", "lyrics-scan", "album-art-scan"}
+scan_state = {
+    "running": False,
+    "mode": None,
+    "started_at": None,
+    "finished_at": None,
+    "returncode": None,
+    "log": [],
+    "command": None,
+    "auto_configure": False,
+    "target": None,
+}
+scan_lock = threading.Lock()
+scan_queue: list[dict] = []
+scan_queue_lock = threading.Lock()
 home_bootstrap_state = {
     "running": False,
     "stage": None,
@@ -4468,10 +4484,11 @@ def allowed_file(path: Path, roots: List[Path]) -> bool:
     return False
 
 
-def append_job_log(line: str):
-    job_state["log"].append(line.rstrip())
-    if len(job_state["log"]) > 500:
-        job_state["log"] = job_state["log"][-500:]
+def append_job_log(line: str, state=None):
+    log_list = (state or job_state)["log"]
+    log_list.append(line.rstrip())
+    if len(log_list) > 500:
+        (state or job_state)["log"] = log_list[-500:]
 
 
 def save_scan_cache(path: Path, payload: dict) -> None:
@@ -4538,32 +4555,23 @@ def ensure_home_bootstrap_started() -> bool:
             launched_lyrics = False
             launched_album_art = False
             while time.time() < deadline:
+                # scrape 走写入槽 job_state；lyrics-scan/album-art-scan 走扫描槽 scan_state
                 if not launched_scrape:
                     if not job_state.get("running") and run_job("scrape"):
                         launched_scrape = True
                         home_bootstrap_state["stage"] = "scrape"
                 elif launched_scrape and not launched_lyrics:
-                    if not job_state.get("running"):
-                        if job_state.get("mode") == "scrape":
-                            if run_job("lyrics-scan"):
-                                launched_lyrics = True
-                                home_bootstrap_state["stage"] = "lyrics-scan"
-                        elif job_state.get("mode") is None:
-                            if run_job("lyrics-scan"):
-                                launched_lyrics = True
-                                home_bootstrap_state["stage"] = "lyrics-scan"
+                    if not job_state.get("running") and (job_state.get("mode") in {None, "scrape"}):
+                        if run_job("lyrics-scan"):
+                            launched_lyrics = True
+                            home_bootstrap_state["stage"] = "lyrics-scan"
                 elif launched_lyrics and not launched_album_art:
-                    if not job_state.get("running"):
-                        if job_state.get("mode") == "lyrics-scan":
-                            if run_job("album-art-scan"):
-                                launched_album_art = True
-                                home_bootstrap_state["stage"] = "album-art-scan"
-                        elif job_state.get("mode") is None:
-                            if run_job("album-art-scan"):
-                                launched_album_art = True
-                                home_bootstrap_state["stage"] = "album-art-scan"
+                    if not job_state.get("running") and not scan_state.get("running"):
+                        if run_job("album-art-scan"):
+                            launched_album_art = True
+                            home_bootstrap_state["stage"] = "album-art-scan"
                 elif launched_album_art:
-                    if not job_state.get("running") and job_state.get("mode") == "album-art-scan":
+                    if not job_state.get("running") and not scan_state.get("running"):
                         home_bootstrap_state["done"] = True
                         break
                 time.sleep(0.5)
@@ -4578,21 +4586,27 @@ def ensure_home_bootstrap_started() -> bool:
 
 
 def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None, allow_queue: bool = False):
-    with job_lock:
-        if job_state["running"]:
+    """启动任务。轻量扫描类（SCAN_LIGHT_MODES）跑 scan_state 槽，与写入类（job_state 槽）并行；同类仍互斥+排队。"""
+    is_scan_light = mode in SCAN_LIGHT_MODES
+    state = scan_state if is_scan_light else job_state
+    lock = scan_lock if is_scan_light else job_lock
+    queue = scan_queue if is_scan_light else job_queue
+    qlock = job_queue_lock if is_scan_light else scan_queue_lock
+    with lock:
+        if state["running"]:
             if not allow_queue:
                 return False
             # 排队：FIFO，最多 JOB_QUEUE_MAX 条，同模式同目标去重
-            with job_queue_lock:
-                for item in job_queue:
+            with qlock:
+                for item in queue:
                     if item["mode"] == mode and item.get("overwrite") == overwrite and item.get("target") == target:
                         return "queued"
-                if len(job_queue) >= JOB_QUEUE_MAX:
+                if len(queue) >= JOB_QUEUE_MAX:
                     return "full"
-                job_queue.append({"mode": mode, "overwrite": overwrite, "target": target, "queued_at": int(time.time())})
+                queue.append({"mode": mode, "overwrite": overwrite, "target": target, "queued_at": int(time.time())})
             return "queued"
         auto_configure = mode in {"write", "scrape"}
-        job_state.update({
+        state.update({
             "running": True,
             "mode": mode,
             "started_at": int(time.time()),
@@ -4607,62 +4621,62 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None, a
     def worker():
         try:
             if mode == "artist-scan-count":
-                job_state["command"] = ["artist-scan-count"]
+                state["command"] = ["artist-scan-count"]
                 result = run_artist_scan_count_job()
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode == "lyrics-scan":
-                job_state["command"] = ["lyrics-scan"]
+                state["command"] = ["lyrics-scan"]
                 result = run_lyrics_scan_job()
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode == "album-art-scan":
-                job_state["command"] = ["album-art-scan"]
+                state["command"] = ["album-art-scan"]
                 result = run_album_art_scan_job()
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode in {"album-art-write", "album-art-write-overwrite"}:
-                job_state["command"] = ["music-tag-web-cover-write", f"overwrite={overwrite}"]
-                append_job_log("[INFO] starting album art write job from Music Tag Web attachments")
+                state["command"] = ["music-tag-web-cover-write", f"overwrite={overwrite}"]
+                append_job_log("[INFO] starting album art write job from Music Tag Web attachments", state)
                 result = write_music_tag_web_album_art(overwrite=overwrite)
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode in {"lyrics-online-write", "lyrics-online-write-overwrite"}:
-                job_state["command"] = ["online-lyrics-write", f"overwrite={overwrite}"]
-                append_job_log("[INFO] starting online lyric scrape job")
+                state["command"] = ["online-lyrics-write", f"overwrite={overwrite}"]
+                append_job_log("[INFO] starting online lyric scrape job", state)
                 only_audio_path = (target or {}).get("audio_path") if target else None
                 search_keyword = (target or {}).get("search_keyword") if target else None
                 result = write_online_lyrics(overwrite=overwrite, only_audio_path=only_audio_path, search_keyword=search_keyword)
                 if isinstance(result, dict):
                     for key, value in result.items():
                         if key not in {"ok", "log"}:
-                            job_state[key] = value
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                            state[key] = value
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode in {"album-art-online-write", "album-art-online-write-overwrite"}:
-                job_state["command"] = ["online-album-art-write", f"overwrite={overwrite}"]
-                append_job_log("[INFO] starting online album art scrape job")
+                state["command"] = ["online-album-art-write", f"overwrite={overwrite}"]
+                append_job_log("[INFO] starting online album art scrape job", state)
                 only_audio_path = (target or {}).get("audio_path") if target else None
                 only_folder_path = (target or {}).get("folder_path") if target else None
                 result = write_online_album_art(overwrite=overwrite, only_audio_path=only_audio_path, only_folder_path=only_folder_path)
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             if mode in {"song-cover-online-write", "song-cover-online-write-overwrite"}:
-                job_state["command"] = ["online-song-cover-write", f"overwrite={overwrite}"]
-                append_job_log("[INFO] starting online embedded cover scrape job")
+                state["command"] = ["online-song-cover-write", f"overwrite={overwrite}"]
+                append_job_log("[INFO] starting online embedded cover scrape job", state)
                 only_audio_path = (target or {}).get("audio_path") if target else None
                 result = write_online_song_cover(overwrite=overwrite, only_audio_path=only_audio_path)
                 if isinstance(result, dict):
                     for key, value in result.items():
                         if key not in {"ok", "log"}:
-                            job_state[key] = value
-                job_state["returncode"] = 0 if result.get("ok") else 1
+                            state[key] = value
+                state["returncode"] = 0 if result.get("ok") else 1
                 return
 
             actual_mode = "write" if mode in {"scrape", "artist-online-write"} else mode
@@ -4674,40 +4688,40 @@ def run_job(mode: str, overwrite: bool = False, target: Optional[dict] = None, a
                 args.append("--overwrite")
             if only_artist:
                 args.extend(["--artist", str(only_artist)])
-            job_state["command"] = args
+            state["command"] = args
             if auto_configure:
-                append_job_log("[INFO] auto-configure: enabled (successful scrape will export to configured Navidrome artist image folder)")
+                append_job_log("[INFO] auto-configure: enabled (successful scrape will export to configured Navidrome artist image folder)", state)
             proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             assert proc.stdout is not None
             for line in proc.stdout:
-                append_job_log(line)
+                append_job_log(line, state)
             proc.wait()
-            job_state["returncode"] = proc.returncode
+            state["returncode"] = proc.returncode
             if proc.returncode == 0 and auto_configure:
                 export_dir = resolve_export_dir(get_config())
                 if export_dir:
-                    append_job_log(f"[INFO] auto-configure complete: Navidrome export dir updated -> {export_dir}")
+                    append_job_log(f"[INFO] auto-configure complete: Navidrome export dir updated -> {export_dir}", state)
                 else:
-                    append_job_log("[WARN] auto-configure skipped: navidrome_export_dir is not configured")
+                    append_job_log("[WARN] auto-configure skipped: navidrome_export_dir is not configured", state)
         except Exception as exc:
-            append_job_log(f"[ERROR] {exc}")
-            job_state["returncode"] = 1
+            append_job_log(f"[ERROR] {exc}", state)
+            state["returncode"] = 1
         finally:
-            job_state["running"] = False
-            job_state["finished_at"] = int(time.time())
-            # 队列有等待任务则自动接续执行（FIFO）
+            state["running"] = False
+            state["finished_at"] = int(time.time())
+            # 队列有等待任务则自动接续执行（FIFO，仅同类槽）
             nxt = None
-            with job_queue_lock:
-                if job_queue:
-                    nxt = job_queue.pop(0)
+            with qlock:
+                if queue:
+                    nxt = queue.pop(0)
             if nxt is not None:
                 def queued_runner(item):
                     try:
                         time.sleep(0.5)  # 给状态查询留个间隙
-                        append_job_log(f"[INFO] queued job starting: {item['mode']}")
+                        append_job_log(f"[INFO] queued job starting: {item['mode']}", state)
                         run_job(mode=item["mode"], overwrite=item.get("overwrite", False), target=item.get("target"))
                     except Exception as exc:
-                        append_job_log(f"[ERROR] queued job failed to start: {exc}")
+                        append_job_log(f"[ERROR] queued job failed to start: {exc}", state)
                 threading.Thread(target=queued_runner, args=(nxt,), daemon=True).start()
 
     threading.Thread(target=worker, daemon=True).start()
@@ -5618,7 +5632,16 @@ def api_music_lib_download():
 @app.route("/api/job", methods=["GET", "POST"])
 def api_job():
     if request.method == "GET":
-        return jsonify({**job_state, "home_bootstrap": dict(home_bootstrap_state)})
+        # 合并视图：双槽（写入槽 + 轻量扫描槽）。running = 任一槽在跑；正文取活跃槽（优先扫描槽）。
+        scan_running = scan_state.get("running")
+        main_running = job_state.get("running")
+        active = scan_state if scan_running else job_state if main_running else (scan_state if (scan_state.get("mode") or (scan_state.get("finished_at") or 0) >= (job_state.get("finished_at") or 0)) else job_state)
+        merged = dict(active)
+        merged["running"] = bool(scan_running or main_running)
+        merged["home_bootstrap"] = dict(home_bootstrap_state)
+        merged["scan_job"] = dict(scan_state)
+        merged["write_job"] = dict(job_state)
+        return jsonify(merged)
     payload = request.get_json(silent=True) or request.form or {}
     mode = payload.get("mode", "dry-run")
     overwrite = str(payload.get("overwrite", "false")).lower() in {"1", "true", "yes", "on"}
