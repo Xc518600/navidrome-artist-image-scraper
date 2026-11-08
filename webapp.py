@@ -4516,6 +4516,9 @@ def run_artist_scan_count_job() -> dict:
 def ensure_home_bootstrap_started() -> bool:
     if home_bootstrap_state.get("running"):
         return False
+    if home_bootstrap_state.get("done"):
+        # 进程生命周期内只跑一次：避免用户每次刷新首页都重启整套扫描、长期占用任务锁
+        return False
     home_bootstrap_state.update({
         "running": True,
         "stage": "scrape",
