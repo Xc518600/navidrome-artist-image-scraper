@@ -94,7 +94,10 @@ def fetch_qq_toplist(top_id: int, limit: int = 50) -> Dict[str, Any]:
             "artist": singer,
             "rank": item.get("rank"),
             "song_id": str(item.get("songId") or ""),
-            "cover": str(item.get("cover") or ""),
+            "cover": str(item.get("cover") or "") or (
+                f"https://y.gtimg.cn/music/photo_new/T002R300x300M000{item.get('albumMid')}_2.jpg"
+                if item.get("albumMid") else ""
+            ),
             "keyword": f"{title} {singer}".strip(),
         })
     if not songs:
