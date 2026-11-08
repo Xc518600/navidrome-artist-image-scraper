@@ -235,14 +235,8 @@ h3 { font-size: 14px; font-weight: 600; }
 .progress-btn { position: relative; }
 .progress-btn.is-loading { color: transparent !important; pointer-events: none; }
 .progress-btn.is-loading:not(.is-flowing) > * { visibility: hidden; }
-/* 流光态下由扫光接管视觉，不叠加转圈（改为让转圈规则在流光态不生效，避免误杀流光 ::after） */
-.progress-btn.is-loading:not(.is-flowing)::after { content: none; }
-.progress-btn.is-flowing {
-  color: var(--text) !important;
-  background: var(--btn-bg);
-  opacity: 1 !important;
-}
-.progress-btn.is-loading::after {
+/* 流光态由扫光接管视觉：转圈与 visibility 隐藏都只在非流光态生效，流光伪元素不被污染 */
+.progress-btn.is-loading:not(.is-flowing)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -253,6 +247,11 @@ h3 { font-size: 14px; font-weight: 600; }
   border: 2px solid var(--line-soft);
   border-top-color: var(--primary);
   animation: btn-spin 0.7s linear infinite;
+}
+.progress-btn.is-flowing {
+  color: var(--text) !important;
+  background: var(--btn-bg);
+  opacity: 1 !important;
 }
 @keyframes btn-spin { to { transform: rotate(360deg); } }
 
