@@ -321,9 +321,9 @@ class ArtistImageResolver:
                 score = artist_name_score(artist, name, aliases=aliases)
                 if best is None or score > best[0]:
                     best = (score, pic, name)
-            if best and best[0] >= 90:
+            if best and best[0] >= 72:
                 break
-        if not best or best[0] < 90:
+        if not best or best[0] < 72:
             return None
         pic = best[1]
         image_bytes, ext = self._fetch(pic)
