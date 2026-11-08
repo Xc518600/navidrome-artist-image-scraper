@@ -387,6 +387,25 @@ h3 { font-size: 14px; font-weight: 600; }
 .compact-list li { padding: 7px 4px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
 .compact-list li:last-child { border-bottom: none; }
 
+/* 歌词候选条目：纵向堆叠，标题/元信息/预览/按钮各占一行（simple-list 的 flex 横排会把多子元素挤成窄列） */
+#settings-lyrics-candidate-list li, #lyrics-candidate-list li {
+  display: block;
+  padding: 9px 4px;
+}
+#settings-lyrics-candidate-list li strong, #lyrics-candidate-list li strong {
+  display: block;
+  font-size: 14px;
+}
+#settings-lyrics-candidate-list li .muted, #lyrics-candidate-list li .muted {
+  display: block;
+  margin-top: 4px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+#settings-lyrics-candidate-list li .btn, #lyrics-candidate-list li .btn {
+  margin-top: 7px;
+}
+
 /* 搜索/歌词结果卡片：横向排版，避免手机上竖排挤压 */
 .result-row {
   display: grid !important;
