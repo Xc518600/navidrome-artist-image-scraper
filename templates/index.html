@@ -300,6 +300,7 @@
   </div>
   <script>
   let toplistSongs = [];
+  window.__pageIsToplist = document.body.dataset.page === 'music-library-toplist';
 
   function toplistRowHtml(song) {
     const kw = song.keyword || ((song.title || '') + ' ' + (song.artist || '')).trim();
@@ -324,6 +325,11 @@
     const statusEl = document.getElementById('toplist-status');
     const badge = document.getElementById('toplist-count-badge');
     const listId = sel.value;
+    if (!listId) {
+      // 默认选中 QQ 热歌榜并自动加载
+      sel.value = 'qq_26';
+      return loadToplistSongs();
+    }
     if (!listId) { listEl.innerHTML = '<li>先选择一个榜单</li>'; badge.textContent = '0 首'; return false; }
     statusEl.style.display = 'block';
     statusEl.textContent = '正在拉取榜单…';
@@ -1797,6 +1803,10 @@ async function autoBootstrapHomePage() {
 
 document.addEventListener('DOMContentLoaded', () => {
   autoBootstrapHomePage();
+  // 排行榜页：默认自动加载 QQ 热歌榜
+  if (document.getElementById('toplist-select') && window.__pageIsToplist) {
+    loadToplistSongs();
+  }
   // 排行榜「搜索下载」跳转：q + auto=1 自动填入关键词并搜索，直达下载结果
   try {
     const sp = new URLSearchParams(window.location.search);
