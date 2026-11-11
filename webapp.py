@@ -4087,6 +4087,7 @@ def run_album_art_scan_job() -> dict:
         "ok": True,
         "scan_type": "album-art",
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "library_signature": collect_library_mtime_signature(music_root, extensions, skip_dirs),
         "missing_album_art_count": scan.get("missing_album_art_count", 0),
         "missing_album_art_rows": scan.get("missing_album_art_rows", []),
         "skipped_mixed_album_art_count": scan.get("skipped_mixed_album_art_count", 0),
@@ -4102,6 +4103,63 @@ def run_album_art_scan_job() -> dict:
     save_scan_cache(ALBUM_ART_SCAN_CACHE_PATH, payload)
     append_job_log(f"[DONE] album art scan missing={payload['missing_album_art_count']} skipped_mixed={payload['skipped_mixed_album_art_count']}")
     return payload
+
+
+def collect_library_mtime_signature(music_root: Path, extensions: set[str], skip_dirs: List[str]) -> float:
+    """轻量曲库签名：所有音频文件 mtime+size 的加权和，文件增删改都会让签名变化"""
+    signature = 0.0
+    for current_root, dirnames, filenames in os.walk(music_root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+        current = Path(current_root)
+        for name in filenames:
+            if (current / name).suffix.lower() not in extensions:
+                continue
+            try:
+                stat = (current / name).stat()
+            except OSError:
+                continue
+            signature += stat.st_mtime_ns + stat.st_size * 1_000_000
+    return signature
+
+
+def get_album_art_scan_freshness(music_root: Path, extensions: set[str], skip_dirs: List[str]) -> dict:
+    """对比专辑图扫描缓存时间与曲库当前签名，判断缓存是否已过期
+    （曲库在扫描后新增/修改过文件）。同时给出实时歌曲总数。
+    """
+    cache = load_scan_cache(ALBUM_ART_SCAN_CACHE_PATH)
+    updated_at = str(cache.get("updated_at") or "").strip()
+    if not updated_at:
+        return {"stale": True, "reason": "no-cache", "updated_at": ""}
+    try:
+        updated = datetime.strptime(updated_at, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return {"stale": True, "reason": "bad-timestamp", "updated_at": updated_at}
+    signature_now = collect_library_mtime_signature(music_root, extensions, skip_dirs)
+    cached_signature = cache.get("library_signature")
+    if cached_signature is None:
+        # 旧缓存没有签名：用缓存写入时间与曲库最新 mtime 对比，任一音频文件比缓存新即过期
+        try:
+            latest_mtime = 0.0
+            for current_root, dirnames, filenames in os.walk(music_root):
+                dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+                current = Path(current_root)
+                for name in filenames:
+                    if (current / name).suffix.lower() not in extensions:
+                        continue
+                    try:
+                        latest_mtime = max(latest_mtime, (current / name).stat().st_mtime)
+                    except OSError:
+                        continue
+            if latest_mtime > updated.timestamp() + 5:
+                return {"stale": True, "reason": "library-changed", "updated_at": updated_at}
+            return {"stale": False, "reason": "ok", "updated_at": updated_at}
+        except Exception:
+            return {"stale": False, "reason": "unknown", "updated_at": updated_at}
+    try:
+        stale = abs(float(cached_signature) - signature_now) > 0.5
+    except Exception:
+        stale = False
+    return {"stale": stale, "reason": "library-changed" if stale else "ok", "updated_at": updated_at}
 
 
 def build_library_state(scan_live: bool = False, lyrics_scan_only: bool = False) -> dict:
@@ -4799,9 +4857,27 @@ def index():
         music_search_view = view == "music-search"
         deep_media_scan = False
         auto_home_bootstrap_wait = False
+        album_art_scan_auto_triggered = False
         home_bootstrap_done = request.args.get("home_bootstrap_done") == "1"
         if not lyrics_scan and not album_art_scan and not music_search_view and not home_bootstrap_done:
             auto_home_bootstrap_wait = bool(ensure_home_bootstrap_started() or home_bootstrap_state.get("running") or home_bootstrap_state.get("done"))
+        if album_art_scan:
+            # 缓存过期（扫描后曲库有变动）且当前没有扫描在跑：自动补一次扫描，页面提示已自动触发
+            try:
+                config_auto = get_config()
+                freshness = get_album_art_scan_freshness(
+                    resolve_music_root(config_auto),
+                    set(s.lower() for s in config_auto.get("audio_extensions", [])),
+                    list(config_auto.get("skip_dirs", [])),
+                )
+            except Exception:
+                freshness = {"stale": False, "reason": "unknown", "updated_at": ""}
+            album_art_scan_freshness = freshness
+            if freshness.get("stale") and not scan_state.get("running"):
+                if run_job("album-art-scan"):
+                    album_art_scan_auto_triggered = True
+        else:
+            album_art_scan_freshness = None
         try:
             data = build_library_state(scan_live=live_scan, lyrics_scan_only=deep_media_scan)
         except Exception as exc:
@@ -4818,6 +4894,8 @@ def index():
             scan_mode=live_scan,
             lyrics_scan_mode=lyrics_scan,
             album_art_scan_mode=album_art_scan,
+            album_art_scan_freshness=album_art_scan_freshness,
+            album_art_scan_auto_triggered=album_art_scan_auto_triggered,
             auto_lyrics_scan_wait=False,
             auto_home_bootstrap_wait=auto_home_bootstrap_wait,
         )

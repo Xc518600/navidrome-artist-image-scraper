@@ -454,6 +454,9 @@
     <div class="section-head-row">
       <div>
         <h2>专辑图扫描结果</h2>
+        {% if album_art_scan_freshness and album_art_scan_freshness.stale %}
+        <p class="hint" style="color:#e05a8a;">⚠ 曲库在扫描后有变动（{% if album_art_scan_auto_triggered %}已自动触发重新扫描，几秒后刷新页面即可看到最新数字{% else %}扫描任务进行中或触发失败，请稍后手动点“后台扫描专辑图”{% endif %}），下方数字可能不是最新。</p>
+        {% endif %}
         <p class="hint">最近扫描时间：{{ data.album_art_scan_updated_at or '还没有后台扫描结果，点下方“后台扫描专辑图”开始' }}</p>
       </div>
       <div class="section-head-actions">
