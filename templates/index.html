@@ -1611,7 +1611,7 @@ async function submitTargetJob(mode, target, options = {}) {
   const res = await fetch('/api/job', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({mode, target, queue: true})
+    body: JSON.stringify({mode, target, queue: true, overwrite: mode.endsWith('-overwrite') || ['lyrics-online-write', 'lyrics-candidate-write'].includes(mode)})
   });
   const data = await res.json();
   if (data?.queued) {
